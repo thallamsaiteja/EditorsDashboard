@@ -1,11 +1,13 @@
 import React from 'react'
 
-export function Login(props) {
-    
+function Login() {
+
 
     return (
         <>
-        <h1>hello</h1>
+            <h1>hello123</h1>
         </>
     )
 }
+
+export default Login
