@@ -1,0 +1,242 @@
+.manager-dashboard {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.dashboard-header {
+    background-color: #ffffff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.dashboard-header h1 {
+    margin: 0;
+    font-size: 24px;
+    color: #0d1117;
+}
+
+.dashboard-header p {
+    margin: 5px 0 0;
+    color: #606770;
+}
+
+.video-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.video-card {
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-left: 5px solid #606770;
+    /* Default pending border */
+}
+
+/* Add borders for different statuses */
+.video-card.status-accepted_assign_pending {
+    border-left-color: #1877f2;
+    /* Blue for accepted */
+}
+
+.video-card.status-declined {
+    border-left-color: #fa3e3e;
+    /* Red for declined */
+}
+
+.video-card[class*="status-assigned_to_"] {
+    border-left-color: #42b72a;
+    /* Green for assigned */
+}
+
+
+.video-preview {
+    background-color: #e9ecef;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.player-placeholder {
+    text-align: center;
+    color: #606770;
+}
+
+.player-placeholder a {
+    color: #1877f2;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.video-info {
+    padding: 15px;
+}
+
+.video-info p {
+    margin: 5px 0;
+    font-size: 14px;
+}
+
+.status-text {
+    font-weight: bold;
+}
+
+.action-buttons,
+.assignment-section {
+    display: flex;
+    gap: 10px;
+    padding: 15px;
+    border-top: 1px solid #dddfe2;
+}
+
+.final-status-message {
+    text-align: center;
+    padding: 15px;
+    border-top: 1px solid #dddfe2;
+    background-color: #f5f6f7;
+    color: #606770;
+    font-style: italic;
+}
+
+
+.btn {
+    flex-grow: 1;
+    border: none;
+    padding: 10px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.btn-accept {
+    background-color: #42b72a;
+    color: white;
+}
+
+.btn-accept:hover {
+    background-color: #36a420;
+}
+
+.btn-decline {
+    background-color: #fa3e3e;
+    color: white;
+}
+
+.btn-decline:hover {
+    background-color: #e03030;
+}
+
+.btn-assign {
+    background-color: #1877f2;
+    color: white;
+}
+
+.btn-assign:hover {
+    background-color: #166fe5;
+}
+
+.editor-dropdown {
+    flex-grow: 2;
+    padding: 10px;
+    border: 1px solid #dddfe2;
+    border-radius: 6px;
+    background-color: #f5f6f7;
+}
+
+.no-submissions {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 40px;
+    background-color: #fff;
+    border-radius: 8px;
+    color: #606770;
+}
+
+/* --- Add these new styles to your ManagerPage.css file --- */
+
+/* Main Layout using CSS Grid */
+.manager-dashboard-layout {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    /* Main content takes up remaining space, sidebar is 280px wide */
+    gap: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.dashboard-main {
+    grid-column: 1 / 2;
+}
+
+.dashboard-sidebar {
+    grid-column: 2 / 3;
+}
+
+/* Sidebar Styles */
+.sidebar-content {
+    background-color: #ffffff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    position: sticky;
+    /* Makes the sidebar stay in place on scroll */
+    top: 20px;
+}
+
+.sidebar-content h2 {
+    margin-top: 0;
+    font-size: 20px;
+    border-bottom: 1px solid #dddfe2;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+}
+
+.editors-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.editor-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    font-size: 15px;
+}
+
+.editor-item:not(:last-child) {
+    border-bottom: 1px solid #e9ecef;
+}
+
+.editor-name {
+    font-weight: 600;
+    color: #0d1117;
+}
+
+.editor-count {
+    background-color: #e9ecef;
+    color: #606770;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+/* Ensure the main container no longer has its own padding/margin if it's now handled by the layout */
+.manager-dashboard {
+    padding: 0;
+    margin: 0;
+    max-width: none;
+}
