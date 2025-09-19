@@ -1,0 +1,128 @@
+/* The main container */
+.registration_container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background-color: #5A95E5;
+    color: white;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.registration_welcome_heading {
+    font-size: 28px;
+    font-weight: 500;
+    margin-bottom: 20px;
+}
+
+/* The white card container */
+.registration_card {
+    background-color: white;
+    padding: 30px 40px;
+    border-radius: 12px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 420px;
+    text-align: center;
+}
+
+/* The input fields */
+.registration_input {
+    width: 100%;
+    padding: 12px 15px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    box-sizing: border-box;
+    font-size: 16px;
+    /* Add padding to the right for the icon */
+    padding-right: 40px;
+}
+
+.registration_input::placeholder {
+    color: #999;
+}
+
+.registration_input:focus {
+    outline: none;
+    border-color: #5A95E5;
+}
+
+/* Wrapper to position the icon relative to the input */
+.password-input-wrapper {
+    position: relative;
+    width: 100%;
+    margin-bottom: 15px; /* Spacing between inputs */
+}
+
+/* The password input inside the wrapper doesn't need extra bottom margin */
+.password-input-wrapper .registration_input {
+    margin-bottom: 0;
+}
+
+/* Position the icon inside the input field */
+.password-toggle-icon {
+    position: absolute;
+    top: 50%;
+    right: 15px;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: #888;
+}
+
+
+/* The registration button */
+.registration_button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    background-color: #5A95E5;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.registration_button:hover {
+    background-color: #4a7acb;
+}
+
+/* The container for the bottom link */
+.registration_links {
+    margin-top: 20px;
+}
+
+.registration_links a {
+    color: #f0f0f0;
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.registration_links a:hover {
+    text-decoration: underline;
+}
+
+/* --- Message Styles --- */
+
+.error-message {
+  color: #D32F2F; /* Red for errors */
+  font-size: 14px;
+  text-align: left;
+  margin-top: -10px;
+  margin-bottom: 15px;
+}
+
+.success-message {
+  color: #2E7D32; /* Green for success */
+  background-color: #E8F5E9; /* Light green background */
+  font-size: 14px;
+  text-align: center;
+  margin-top: 15px;
+  padding: 10px;
+  border-radius: 4px;
+}
