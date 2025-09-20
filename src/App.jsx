@@ -1,10 +1,5 @@
 import React from 'react';
-import { Route, Routes, BrowserRouter } from 'react-router-dom';
-
-
-// Import all your page components
 import Homepage from './Component/Home/homepage.jsx';
-
 import { Navigate, Route, Routes, BrowserRouter } from 'react-router-dom'
 import ManagerPage from './Component/Manager/ManagerPage'
 import Login from './Component/Auth/Login/Login'
@@ -17,10 +12,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         {/* Main route: Shows the Homepage */}
-        <Route path='/' element={<Homepage />} />
-
-        {/* Auth routes for your teammate's pages */}
-        <Route path='/login' element={<LoginPage />} />        
+        <Route path='/' element={<Homepage />} />      
         {/* 2. Add the route for the manager dashboard */}
         <Route path='/managerdashboard' element={<ManagerPage />} />
 
