@@ -125,8 +125,8 @@ export default function Login() {
             </div>
             
             <div className="login_links">
-                <Link to="/forgot-password">Forgot your password?</Link>
-                <Link to="/register">Don't have an account? Register</Link>
+                <Link to="/forgot-password" className='login_links_text'>Forgot your password?</Link>
+                <Link to="/register" className='login_links_text'>Don't have an account? Register</Link>
             </div>
         </div>
     );
