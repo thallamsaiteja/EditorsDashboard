@@ -1,6 +1,21 @@
-body{
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+
+
+body {
+  /* This is the fix: It removes the browser's default margin. */
+  margin: 0; 
+  
+  /* These are good default styles to keep. */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* It's also good practice to set a default background color here */
+  background-color: #0f172a; /* This matches your homepage background */
 }
+
+/* A common "box-sizing" reset. This helps make layout and sizing more predictable.
+*/
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
