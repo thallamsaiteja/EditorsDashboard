@@ -73,7 +73,9 @@ function ManagerPage() {
                                     status: updateData.status,
                                     video_url: updateData.video_url,
                                     received_at: updateData.received_at,
-                                    assigned_editor_id: updateData.assigned_editor_id || null
+                                    assigned_editor_id: updateData.assigned_editor_id || null,
+                                    assigned_editor_name: null,
+                                    decline_reason: null
                                 };
                                 return [newSubmission, ...prevSubmissions];
                             }
@@ -87,7 +89,22 @@ function ManagerPage() {
                                     ? {
                                         ...sub,
                                         status: updateData.status,
-                                        assigned_editor_id: updateData.assigned_editor_id
+                                        assigned_editor_id: updateData.assigned_editor_id || sub.assigned_editor_id
+                                    }
+                                    : sub
+                            )
+                        );
+                    } else if (updateData.event === 'assignment_created') {
+                        console.log("Assignment created:", updateData);
+                        // Update the submission to reflect the assignment
+                        setSubmissions(prevSubmissions =>
+                            prevSubmissions.map(sub =>
+                                sub.id === updateData.video_submission_id
+                                    ? {
+                                        ...sub,
+                                        status: 'ASSIGNED',
+                                        assigned_editor_id: updateData.assigned_editor_id,
+                                        assignment_id: updateData.assignment_id
                                     }
                                     : sub
                             )
@@ -145,13 +162,18 @@ function ManagerPage() {
     }, []);
 
     // --- Action Handlers ---
-    const updateBackendStatus = async (submissionId, newStatus, assignedEditorId = null) => {
+    const updateBackendStatus = async (submissionId, newStatus, assignedEditorId = null, declineReason = null) => {
         try {
             const url = new URL(`${API_BASE_URL}/update-submission-status`);
             url.searchParams.append('submission_id', submissionId);
             url.searchParams.append('new_status', newStatus);
+
             if (assignedEditorId) {
                 url.searchParams.append('assigned_editor_id', assignedEditorId);
+            }
+
+            if (declineReason) {
+                url.searchParams.append('decline_reason', declineReason);
             }
 
             const response = await fetch(url.toString(), { method: 'POST' });
@@ -171,15 +193,18 @@ function ManagerPage() {
 
     const handleAccept = (submissionId) => {
         console.log("Accepting submission:", submissionId);
-        updateBackendStatus(submissionId, 'ACCEPTED');
+        updateBackendStatus(submissionId, 'accepted');
     };
 
     const handleDecline = (submissionId) => {
         const reason = prompt("Please provide a reason for declining this video:");
-        if (reason) {
+        if (reason && reason.trim()) {
             console.log("Declining submission:", submissionId, "Reason:", reason);
-            updateBackendStatus(submissionId, 'DECLINED');
+            updateBackendStatus(submissionId, 'declined', null, reason.trim());
+        } else if (reason === '') {
+            alert("Please provide a reason for declining the video.");
         }
+        // If reason is null (user cancelled), do nothing
     };
 
     const handleAssign = (submissionId, editorId = null) => {
@@ -189,7 +214,7 @@ function ManagerPage() {
             return;
         }
         console.log("Assigning submission:", submissionId, "to editor:", editorToAssign);
-        updateBackendStatus(submissionId, 'ASSIGNED', editorToAssign);
+        updateBackendStatus(submissionId, 'assigned', editorToAssign);
         setSelectedEditor(''); // Reset dropdown for the next assignment
     };
 
@@ -203,6 +228,7 @@ function ManagerPage() {
 
     const getStatusText = (status) => {
         switch (status) {
+            case 'PENDING_REVIEW': return 'Pending Review';
             case 'pending_review': return 'Pending Review';
             case 'PROCESSING': return 'Processing';
             case 'ACCEPTED': return 'Ready to Assign';
@@ -263,7 +289,7 @@ function ManagerPage() {
                     </div>
                     <div className="stat-card">
                         <h3>Pending Review</h3>
-                        <p>{submissions.filter(s => s.status === 'pending_review').length}</p>
+                        <p>{submissions.filter(s => s.status === 'PENDING_REVIEW' || s.status === 'pending_review').length}</p>
                     </div>
                     <div className="stat-card">
                         <h3>Ready to Assign</h3>
@@ -307,10 +333,13 @@ function ManagerPage() {
                                     </p>
                                     <p><strong>Received:</strong> {formatDateTime(submission.received_at)}</p>
                                     <p><strong>ID:</strong> <code>{submission.id.slice(0, 8)}...</code></p>
+                                    {submission.decline_reason && (
+                                        <p><strong>Decline Reason:</strong> <em>{submission.decline_reason}</em></p>
+                                    )}
                                 </div>
 
                                 {/* Accept/Decline buttons - Show only for PENDING_REVIEW */}
-                                {(submission.status === 'PENDING_REVIEW' || submission.status == 'pending_review') && (
+                                {(submission.status === 'PENDING_REVIEW' || submission.status === 'pending_review') && (
                                     <div className="action-buttons">
                                         <button
                                             className="btn btn-accept"
@@ -429,7 +458,7 @@ function ManagerPage() {
                             </div>
                             <div className="quick-stat">
                                 <span className="stat-label">Pending:</span>
-                                <span className="stat-value">{submissions.filter(s => s.status === 'PENDING_REVIEW').length}</span>
+                                <span className="stat-value">{submissions.filter(s => s.status === 'PENDING_REVIEW' || s.status === 'pending_review').length}</span>
                             </div>
                             <div className="quick-stat">
                                 <span className="stat-label">Total Editors:</span>
