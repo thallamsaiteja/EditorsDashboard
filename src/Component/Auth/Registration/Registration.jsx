@@ -1,119 +1,118 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import './Registration.css';
-
-const mobileNumberPattern = /^\d{10}$/;
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { registerEditorApi } from '../../../apiService.js';  
+import { registrationSchema } from '../../../validateSchema.js';
 
 export default function Registration() {
-    // State for input fields
-    const [firstname, setFirstname] = useState("");
-    const [lastname, setLastname] = useState("");
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [confirmPassword, setConfirmPassword] = useState("");
-    const [mobileNumber, setMobileNumber] = useState("");
+    const [formData, setFormData] = useState({
+        firstname: "",
+        lastname: "",
+        username: "",
+        email: "",
+        password: "",
+        confirmPassword: "",
+        mobileNumber: "",
+    });
 
-    // State for error and success messages
-    const [firstnameError, setFirstnameError] = useState("");
-    const [lastnameError, setLastnameError] = useState("");
-    const [emailError, setEmailError] = useState("");
-    const [passwordError, setPasswordError] = useState("");
-    const [mobileError, setMobileError] = useState("");
+    const [errors, setErrors] = useState({});
     const [successMessage, setSuccessMessage] = useState("");
-
-    // --- 1. CREATE TWO SEPARATE STATES ---
+    const [apiError, setApiError] = useState("");
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
 
-    // --- 2. CREATE TWO SEPARATE TOGGLE FUNCTIONS ---
-    const togglePasswordVisibility = () => {
-        setIsPasswordVisible(!isPasswordVisible);
-    };
-    const toggleConfirmPasswordVisibility = () => {
-        setIsConfirmPasswordVisible(!isConfirmPasswordVisible);
+    const navigate = useNavigate();
+
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+
+        // Check if the input being changed is the mobile number field
+        if (name === "mobileNumber") {
+            // Use a regular expression to remove any character that is NOT a digit (0-9)
+            const numericValue = value.replace(/[^0-9]/g, '');
+            // Update the state only with the numeric value
+            setFormData({ ...formData, [name]: numericValue });
+        } else {
+            // For all other fields, update the state as normal
+            setFormData({ ...formData, [name]: value });
+        }
     };
 
-    const handleSubmit = (e) => {
+    const togglePasswordVisibility = () => setIsPasswordVisible(!isPasswordVisible);
+    const toggleConfirmPasswordVisibility = () => setIsConfirmPasswordVisible(!isConfirmPasswordVisible);
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        setFirstnameError("");
-        setLastnameError("");
-        setEmailError("");
-        setPasswordError("");
-        setMobileError("");
+        setErrors({});
+        setApiError("");
         setSuccessMessage("");
-        
-        let isValid = true;
 
-        if (!firstname) {
-            setFirstnameError("First name is required.");
-            isValid = false;
+        const result = registrationSchema.safeParse(formData);
+
+        if (!result.success) {
+            const fieldErrors = {};
+            // --- THIS IS THE CORRECTED LINE ---
+            // Zod's error array is called 'issues', not 'errors'.
+            for (const error of result.error.issues) {
+                fieldErrors[error.path[0]] = error.message;
+            }
+            setErrors(fieldErrors);
+            return;
         }
-        if (!lastname) {
-            setLastnameError("Last name is required.");
-            isValid = false;
-        }
-        if (!emailPattern.test(email)) {
-            setEmailError("Please enter a valid email address.");
-            isValid = false;
-        }
-        if (password.length < 8) {
-            setPasswordError("Password must be at least 8 characters long.");
-            isValid = false;
-        } else if (password !== confirmPassword) {
-            setPasswordError("Passwords do not match.");
-            isValid = false;
-        }
-        if (!mobileNumberPattern.test(mobileNumber)) {
-            setMobileError("Please enter a valid 10-digit mobile number.");
-            isValid = false;
-        }
-        
-        if (isValid) {
-            setSuccessMessage("Registration successful! Welcome aboard.");
-            console.log("Submitting data:", { firstname, lastname, email, password, mobileNumber });
+
+        const { firstname, lastname, confirmPassword, mobileNumber, ...apiData } = result.data;
+        const userData = {
+            ...apiData,
+            full_name: `${firstname} ${lastname}`,
+            phone_number: mobileNumber,
+        };
+
+        try {
+            await registerEditorApi(userData);
+            setSuccessMessage("Registration successful! Redirecting to login...");
+            setTimeout(() => navigate('/login'), 2000);
+        } catch (error) {
+            setApiError(error.message);
         }
     };
 
     return (
         <div className='registration_container'>
             <span className="material-symbols-outlined" style={{ fontSize: '50px' }}>person_add</span>
-            <h1 className='registration_welcome_heading'>Create your account</h1>
+            <h1 className='registration_welcome_heading'>Create Editor Account</h1>
 
             <div className='registration_card'>
-                <form onSubmit={handleSubmit} noValidate>     
-                    <input value={firstname} onChange={(e) => setFirstname(e.target.value)} required type="text" className="registration_input" placeholder='First Name' />
-                    {firstnameError && <p className="error-message">{firstnameError}</p>}
+                <form onSubmit={handleSubmit} noValidate>
+                    <input name="firstname" value={formData.firstname} onChange={handleInputChange} required type="text" className="registration_input" placeholder='First Name' />
+                    {errors.firstname && <p className="error-message">{errors.firstname}</p>}
 
-                    <input value={lastname} onChange={(e) => setLastname(e.target.value)} required type="text" className="registration_input" placeholder='Last Name' />
-                    {lastnameError && <p className="error-message">{lastnameError}</p>}
+                    <input name="lastname" value={formData.lastname} onChange={handleInputChange} required type="text" className="registration_input" placeholder='Last Name' />
+                    {errors.lastname && <p className="error-message">{errors.lastname}</p>}
 
-                    <input value={email} onChange={(e) => setEmail(e.target.value)} required type="email" className="registration_input" placeholder='Email Address' />
-                    {emailError && <p className="error-message">{emailError}</p>}
+                    <input name="username" value={formData.username} onChange={handleInputChange} required type="text" className="registration_input" placeholder='Username' />
+                    {errors.username && <p className="error-message">{errors.username}</p>}
+
+                    <input name="email" value={formData.email} onChange={handleInputChange} required type="email" className="registration_input" placeholder='Email Address' />
+                    {errors.email && <p className="error-message">{errors.email}</p>}
                     
-                    <input value={mobileNumber} onChange={(e) => setMobileNumber(e.target.value)} required type="tel" maxLength="10" className="registration_input" placeholder='Mobile Number' />
-                    {mobileError && <p className="error-message">{mobileError}</p>}
-                    {/* --- 3. CONNECT THE FIRST PASSWORD INPUT TO ITS OWN STATE/FUNCTION --- */}
+                    <input name="mobileNumber" value={formData.mobileNumber} onChange={handleInputChange} required type="numeric" maxLength="10" className="registration_input" placeholder='Mobile Number' />
+                    {errors.mobileNumber && <p className="error-message">{errors.mobileNumber}</p>}
+                    
                     <div className="password-input-wrapper">
-                        <input value={password} onChange={(e) => setPassword(e.target.value)} required type={isPasswordVisible ? "text" : "password"} className="registration_input" placeholder='Password' />
-                        <span onClick={togglePasswordVisibility} className="material-symbols-outlined password-toggle-icon">
-                            {isPasswordVisible ? "visibility_off" : "visibility"}
-                        </span>
+                        <input name="password" value={formData.password} onChange={handleInputChange} required type={isPasswordVisible ? "text" : "password"} className="registration_input" placeholder='Password' />
+                        <span onClick={togglePasswordVisibility} className="material-symbols-outlined password-toggle-icon">{isPasswordVisible ? "visibility_off" : "visibility"}</span>
                     </div>
+                    {errors.password && <p className="error-message">{errors.password}</p>}
 
-                    {/* --- 4. CONNECT THE SECOND PASSWORD INPUT TO ITS OWN STATE/FUNCTION --- */}
                     <div className="password-input-wrapper">
-                        <input value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required type={isConfirmPasswordVisible ? "text" : "password"} className="registration_input" placeholder='Confirm Password' />
-                        <span onClick={toggleConfirmPasswordVisibility} className="material-symbols-outlined password-toggle-icon">
-                            {isConfirmPasswordVisible ? "visibility_off" : "visibility"}
-                        </span>
+                        <input name="confirmPassword" value={formData.confirmPassword} onChange={handleInputChange} required type={isConfirmPasswordVisible ? "text" : "password"} className="registration_input" placeholder='Confirm Password' />
+                        <span onClick={toggleConfirmPasswordVisibility} className="material-symbols-outlined password-toggle-icon">{isConfirmPasswordVisible ? "visibility_off" : "visibility"}</span>
                     </div>
-                    {passwordError && <p className="error-message">{passwordError}</p>}
-                    
+                    {errors.confirmPassword && <p className="error-message">{errors.confirmPassword}</p>}
 
-                    
                     <button type="submit" className='registration_button'>Register</button>
 
+                    {apiError && <p className="error-message api-error">{apiError}</p>}
                     {successMessage && <p className="success-message">{successMessage}</p>}
                 </form>
             </div>

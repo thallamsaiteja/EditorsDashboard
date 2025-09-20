@@ -1,12 +1,16 @@
 import React from 'react';
 import { Route, Routes, BrowserRouter } from 'react-router-dom';
 
+
 // Import all your page components
 import Homepage from './Component/Home/homepage.jsx';
-import LoginPage from './Component/Auth/Login/Login.jsx';
-import RegistrationPage from './Component/Auth/Registration/Registration.jsx';
-import ForgotPasswordPage from './Component/Auth/ForgotPassword/ForgotPassword.jsx';
-import ManagerPage from './Component/Manager/ManagerPage.jsx'; // 1. Import ManagerPage
+
+import { Navigate, Route, Routes, BrowserRouter } from 'react-router-dom'
+import ManagerPage from './Component/Manager/ManagerPage'
+import Login from './Component/Auth/Login/Login'
+import Registration from './Component/Auth/Registration/Registration' 
+import './App.css'
+
 
 function App() {
   return (
@@ -16,12 +20,13 @@ function App() {
         <Route path='/' element={<Homepage />} />
 
         {/* Auth routes for your teammate's pages */}
-        <Route path='/login' element={<LoginPage />} />
-        <Route path='/register' element={<RegistrationPage />} />
-        <Route path='/forgot-password' element={<ForgotPasswordPage />} />
-        
+        <Route path='/login' element={<LoginPage />} />        
         {/* 2. Add the route for the manager dashboard */}
         <Route path='/managerdashboard' element={<ManagerPage />} />
+
+        <Route path='/Login' element={<Login />} />
+        <Route path='/Registration' element={<Registration />} />
+
       </Routes>
     </BrowserRouter>
   );
