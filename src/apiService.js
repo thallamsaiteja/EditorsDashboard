@@ -47,12 +47,9 @@ export const registerEditorApi = async (userData) => {
     return handleResponse(response);
 };
 
-/**
- * Logs in a user with the 'EDITOR' role.
- * @param {object} credentials - { username, password }.
- */
-export const loginEditorApi = async (credentials) => {
-    const response = await fetch(`${BASE_URL}/login/editor`, {
+
+export const loginUserApi = async (credentials) => {
+    const response = await fetch(`${BASE_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials),
@@ -60,38 +57,11 @@ export const loginEditorApi = async (credentials) => {
     return handleResponse(response);
 };
 
-/**
- * Logs in a user with the 'MANAGER' role.
- * @param {object} credentials - { username, password }.
- */
-export const loginManagerApi = async (credentials) => {
-    const response = await fetch(`${BASE_URL}/login/manager`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(credentials),
-    });
-    return handleResponse(response);
-};
-
-/**
- * Logs in a user with the 'ADMIN' role.
- * @param {object} credentials - { username, password }.
- */
-export const loginAdminApi = async (credentials) => {
-    const response = await fetch(`${BASE_URL}/login/admin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(credentials),
-    });
-    return handleResponse(response);
-};
-
-
-export const getUnverifiedEditorsApi = async () => {
+export const getPendingUsersApi = async () => {
     const token = getAuthToken();
     if (!token) throw new Error('Authentication token not found. Please log in.');
 
-    const response = await fetch(`${BASE_URL}/manager/unverified-editors`, {
+    const response = await fetch(`${BASE_URL}/admin/pending-users`, {
         headers: {
             'Authorization': `Bearer ${token}`,
         },
@@ -100,32 +70,21 @@ export const getUnverifiedEditorsApi = async () => {
 };
 
 /**
- * Updates the verification status of an editor (Accept/Decline). Requires a manager's auth token.
- * @param {string} editorId - The UUID of the editor to update.
- * @param {boolean} isVerified - `true` to accept, `false` to decline.
+ * Approves a user by updating their role and verification status. Requires an admin token.
+ * @param {string} userId - The UUID of the user to approve.
+ * @param {string} newRole - The new role to assign (e.g., 'EDITOR' or 'MANAGER').
  */
-export const updateEditorVerificationApi = async (editorId, isVerified) => {
+export const approveUserApi = async (userId, newRole) => {
     const token = getAuthToken();
     if (!token) throw new Error('Authentication token not found. Please log in.');
 
-    const response = await fetch(`${BASE_URL}/manager/editors/${editorId}/verify`, {
+    const response = await fetch(`${BASE_URL}/admin/approve-user/${userId}`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ is_verified: isVerified }),
-    });
-    return handleResponse(response);
-};
-
-export const loginUserApi = async (credentials) => {
-    const response = await fetch(`${BASE_URL}/login/form`, {
-        method: 'POST',
-        // FastAPI's OAuth2PasswordRequestForm expects this specific content type
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        // Convert the credentials object into a format the backend can understand
-        body: new URLSearchParams(credentials),
+        body: JSON.stringify({ new_role: newRole }),
     });
     return handleResponse(response);
 };
