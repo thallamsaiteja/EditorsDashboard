@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import './Login.css';
 import { Link } from 'react-router-dom';
 
-<<<<<<< HEAD
 export default function Login() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -53,16 +52,3 @@ export default function Login() {
         
     );
 }
-=======
-function Login() {
-
-
-    return (
-        <>
-            <h1>hello123</h1>
-        </>
-    )
-}
-
-export default Login
->>>>>>> 2a4afe80106fe5887f15522f84ec45b6cc6d9f65

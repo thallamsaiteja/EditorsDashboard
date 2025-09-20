@@ -1,3 +1,17 @@
+/* --- Registration Page Styles (Dark Theme) --- */
+
+:root {
+  --bg-primary: #0f172a;    
+  --bg-secondary: #1e293b;  
+  --border-color: #334155;  
+  --text-primary: #f1f5f9;   
+  --text-secondary: #94a3b8; 
+  --accent-primary: #38bdf8; 
+  --accent-secondary: #6366f1;
+  --error-color: #ef4444; /* A brighter red for dark backgrounds */
+  --success-color: #22c55e; /* A vibrant green for dark backgrounds */
+}
+
 /* The main container */
 .registration_container {
     display: flex;
@@ -5,10 +19,11 @@
     align-items: center;
     justify-content: center;
     min-height: 100vh;
-    background-color: #5A95E5;
-    color: white;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
     padding: 20px;
     box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 .registration_welcome_heading {
@@ -17,12 +32,13 @@
     margin-bottom: 20px;
 }
 
-/* The white card container */
+/* The dark card container */
 .registration_card {
-    background-color: white;
+    background-color: var(--bg-secondary);
     padding: 30px 40px;
     border-radius: 12px;
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
     width: 100%;
     max-width: 420px;
     text-align: center;
@@ -33,31 +49,32 @@
     width: 100%;
     padding: 12px 15px;
     margin-bottom: 15px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
     border-radius: 6px;
     box-sizing: border-box;
     font-size: 16px;
-    /* Add padding to the right for the icon */
-    padding-right: 40px;
+    padding-right: 40px; /* Space for the icon */
+    transition: border-color 0.2s;
 }
 
 .registration_input::placeholder {
-    color: #999;
+    color: var(--text-secondary);
 }
 
 .registration_input:focus {
     outline: none;
-    border-color: #5A95E5;
+    border-color: var(--accent-primary);
 }
 
 /* Wrapper to position the icon relative to the input */
 .password-input-wrapper {
     position: relative;
     width: 100%;
-    margin-bottom: 15px; /* Spacing between inputs */
+    margin-bottom: 15px;
 }
 
-/* The password input inside the wrapper doesn't need extra bottom margin */
 .password-input-wrapper .registration_input {
     margin-bottom: 0;
 }
@@ -69,16 +86,15 @@
     right: 15px;
     transform: translateY(-50%);
     cursor: pointer;
-    color: #888;
+    color: var(--text-secondary);
 }
-
 
 /* The registration button */
 .registration_button {
     width: 100%;
     padding: 12px;
     margin-top: 10px;
-    background-color: #5A95E5;
+    background-color: var(--accent-secondary);
     color: white;
     border: none;
     border-radius: 6px;
@@ -89,7 +105,7 @@
 }
 
 .registration_button:hover {
-    background-color: #4a7acb;
+    background-color: #4f46e5;
 }
 
 /* The container for the bottom link */
@@ -98,31 +114,176 @@
 }
 
 .registration_links a {
-    color: #f0f0f0;
+    color: var(--text-secondary);
     text-decoration: none;
     font-size: 14px;
 }
 
 .registration_links a:hover {
     text-decoration: underline;
+    color: var(--accent-primary);
 }
 
 /* --- Message Styles --- */
-
 .error-message {
-  color: #D32F2F; /* Red for errors */
-  font-size: 14px;
-  text-align: left;
-  margin-top: -10px;
-  margin-bottom: 15px;
+    color: var(--error-color);
+    font-size: 14px;
+    text-align: left;
+    margin-top: -10px;
+    margin-bottom: 15px;
 }
 
 .success-message {
-  color: #2E7D32; /* Green for success */
-  background-color: #E8F5E9; /* Light green background */
-  font-size: 14px;
-  text-align: center;
-  margin-top: 15px;
-  padding: 10px;
-  border-radius: 4px;
+    color: var(--success-color);
+    background-color: rgba(34, 197, 94, 0.1); /* Light green background */
+    font-size: 14px;
+    text-align: center;
+    margin-top: 15px;
+    padding: 10px;
+    border: 1px solid var(--success-color);
+    border-radius: 4px;
+}/* --- Registration Page Styles (Dark Theme) --- */
+
+:root {
+  --bg-primary: #0f172a;    
+  --bg-secondary: #1e293b;  
+  --border-color: #334155;  
+  --text-primary: #f1f5f9;   
+  --text-secondary: #94a3b8; 
+  --accent-primary: #38bdf8; 
+  --accent-secondary: #6366f1;
+  --error-color: #ef4444; /* A brighter red for dark backgrounds */
+  --success-color: #22c55e; /* A vibrant green for dark backgrounds */
+}
+
+/* The main container */
+.registration_container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    padding: 20px;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.registration_welcome_heading {
+    font-size: 28px;
+    font-weight: 500;
+    margin-bottom: 20px;
+}
+
+/* The dark card container */
+.registration_card {
+    background-color: var(--bg-secondary);
+    padding: 30px 40px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    width: 100%;
+    max-width: 420px;
+    text-align: center;
+}
+
+/* The input fields */
+.registration_input {
+    width: 100%;
+    padding: 12px 15px;
+    margin-bottom: 15px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    border-radius: 6px;
+    box-sizing: border-box;
+    font-size: 16px;
+    padding-right: 40px; /* Space for the icon */
+    transition: border-color 0.2s;
+}
+
+.registration_input::placeholder {
+    color: var(--text-secondary);
+}
+
+.registration_input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
+/* Wrapper to position the icon relative to the input */
+.password-input-wrapper {
+    position: relative;
+    width: 100%;
+    margin-bottom: 15px;
+}
+
+.password-input-wrapper .registration_input {
+    margin-bottom: 0;
+}
+
+/* Position the icon inside the input field */
+.password-toggle-icon {
+    position: absolute;
+    top: 50%;
+    right: 15px;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+
+/* The registration button */
+.registration_button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    background-color: var(--accent-secondary);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.registration_button:hover {
+    background-color: #4f46e5;
+}
+
+/* The container for the bottom link */
+.registration_links {
+    margin-top: 20px;
+}
+
+.registration_links a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.registration_links a:hover {
+    text-decoration: underline;
+    color: var(--accent-primary);
+}
+
+/* --- Message Styles --- */
+.error-message {
+    color: var(--error-color);
+    font-size: 14px;
+    text-align: left;
+    margin-top: -10px;
+    margin-bottom: 15px;
+}
+
+.success-message {
+    color: var(--success-color);
+    background-color: rgba(34, 197, 94, 0.1); /* Light green background */
+    font-size: 14px;
+    text-align: center;
+    margin-top: 15px;
+    padding: 10px;
+    border: 1px solid var(--success-color);
+    border-radius: 4px;
 }

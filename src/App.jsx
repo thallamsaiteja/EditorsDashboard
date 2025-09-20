@@ -6,6 +6,7 @@ import Homepage from './Component/Home/homepage.jsx';
 import LoginPage from './Component/Auth/Login/Login.jsx';
 import RegistrationPage from './Component/Auth/Registration/Registration.jsx';
 import ForgotPasswordPage from './Component/Auth/ForgotPassword/ForgotPassword.jsx';
+import ManagerPage from './Component/Manager/ManagerPage.jsx'; // 1. Import ManagerPage
 
 function App() {
   return (
@@ -19,8 +20,8 @@ function App() {
         <Route path='/register' element={<RegistrationPage />} />
         <Route path='/forgot-password' element={<ForgotPasswordPage />} />
         
-        {/* You can add your manager dashboard route here later */}
-        {/* <Route path='/managerdashboard' element={<ManagerPage />} /> */}
+        {/* 2. Add the route for the manager dashboard */}
+        <Route path='/managerdashboard' element={<ManagerPage />} />
       </Routes>
     </BrowserRouter>
   );
