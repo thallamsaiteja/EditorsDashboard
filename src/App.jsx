@@ -1,16 +1,24 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+
+import { Navigate, Route, Routes, BrowserRouter } from 'react-router-dom'
+import ManagerPage from './Component/Manager/ManagerPage'
+import Login from './Component/Auth/Login/Login'
+import Registration from './Component/Auth/Registration/Registration' 
 import './App.css'
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-    <div className='ddd'>helli, W</div>
-    </>
-   )
+
+    <BrowserRouter>
+
+      <Routes>
+
+        <Route path='/managerdashboard' element={<ManagerPage />} />
+        <Route path='/Login' element={<Login />} />
+        <Route path='/Registration' element={<Registration />} />
+      </Routes>
+    </BrowserRouter>
+
+  )
 }
 
 export default App
