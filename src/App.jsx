@@ -1,7 +1,6 @@
 import React from 'react';
 import { Route, Routes, BrowserRouter } from 'react-router-dom';
 import './App.css';
-
 // Import all page components
 import Homepage from './Component/Home/homepage.jsx';
 import ManagerPage from './Component/Manager/ManagerPage.jsx';
