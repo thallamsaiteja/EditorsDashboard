@@ -112,7 +112,7 @@ export default function Registration() {
 
                     <button type="submit" className='registration_button'>Register</button>
 
-                    {apiError && <p className="error-message api-error">{apiError}</p>}
+                    {apiError && <p className="error-messages api-error">{apiError}</p>}
                     {successMessage && <p className="success-message">{successMessage}</p>}
                 </form>
             </div>

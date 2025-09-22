@@ -29,15 +29,14 @@ const handleResponse = async (response) => {
  * A helper function to retrieve the saved JWT token from the browser's local storage.
  */
 const getAuthToken = () => {
-    return localStorage.getItem('authToken');
+    const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('authToken='))
+        ?.split('=')[1];
+    return token;
 };
 
-// --- AUTHENTICATION API FUNCTIONS ---
 
-/**
- * Registers a new user with the 'EDITOR' role.
- * @param {object} userData - The registration data from the form.
- */
 export const registerEditorApi = async (userData) => {
     const response = await fetch(`${BASE_URL}/register/editor`, {
         method: 'POST',
@@ -85,6 +84,91 @@ export const approveUserApi = async (userId, newRole) => {
             'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ new_role: newRole }),
+    });
+    return handleResponse(response);
+};
+
+export const getManagerTeamApi = async () => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Authentication token not found.');
+
+    const response = await fetch(`${BASE_URL}/manager/team`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+    });
+    return handleResponse(response);
+};
+
+/**
+ * Updates a user's status (to accept or revoke them).
+ * This function can be used by both Managers and Admins.
+ * @param {string} userId - The UUID of the user to update.
+ * @param {boolean} isActive - The new active status.
+ * @param {boolean} isVerified - The new verified status.
+ */
+export const updateUserStatusApi = async (userId, isActive, isVerified) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Authentication token not found.');
+
+    const response = await fetch(`${BASE_URL}/manager/users/${userId}/status`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ is_active: isActive, is_verified: isVerified }),
+    });
+    return handleResponse(response);
+};
+
+
+// --- ADMIN DASHBOARD API FUNCTIONS (You will need these later) ---
+
+/**
+ * Fetches the list of all users (pending, editors, and managers) for an admin's view.
+ */
+export const getAdminUserListApi = async () => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Authentication token not found.');
+
+    // This endpoint should be created on your backend
+    const response = await fetch(`${BASE_URL}/admin/users`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+    });
+    return handleResponse(response);
+};
+
+/**
+ * Approves a user by assigning a new role. Used by Admins.
+ * @param {string} userId - The UUID of the user to approve.
+ * @param {string} newRole - The new role to assign (e.g., 'EDITOR' or 'MANAGER').
+ */
+export const approveUserRoleApi = async (userId, newRole) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Authentication token not found.');
+    
+    // This endpoint should be created on your backend
+    const response = await fetch(`${BASE_URL}/admin/approve-user/${userId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ new_role: newRole }),
+    });
+    return handleResponse(response);
+};
+
+export const updateUserApi = async (userId, updateData) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Authentication token not found.');
+
+    const response = await fetch(`${BASE_URL}/manager/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(updateData),
     });
     return handleResponse(response);
 };

@@ -3,7 +3,7 @@
     padding: 30px;
     border-radius: 12px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-    overflow-x: auto; /* Ensures the table is scrollable on small screens */
+    overflow-x: auto;
 }
 
 .list-title {
@@ -15,14 +15,14 @@
 
 .user-table {
     width: 100%;
-    border-collapse: collapse; /* Removes space between table cells */
+    border-collapse: collapse;
 }
 
 .user-table th, .user-table td {
     padding: 15px;
     text-align: left;
     border-bottom: 1px solid #e0e0e0;
-    white-space: nowrap; /* Prevents text like emails from wrapping */
+    white-space: nowrap;
 }
 
 .user-table th {
@@ -38,13 +38,13 @@
 }
 
 .user-table tbody tr:hover {
-    background-color: #fafafa; /* Highlight row on hover */
+    background-color: #fafafa;
 }
 
 .actions-cell {
     display: flex;
     align-items: center;
-    gap: 15px; /* Space between items in the actions column */
+    gap: 10px;
 }
 
 .action-button {
@@ -57,21 +57,21 @@
     transition: all 0.2s ease;
 }
 
-.action-button.accept {
-    background-color: #2196F3; /* Blue */
-    color: white;
-}
-.action-button.accept:hover {
-    background-color: #1976D2; /* Darker blue on hover */
-}
+.action-button.accept { background-color: #2196F3; color: white; }
+.action-button.accept:hover { background-color: #1976D2; }
 
-.action-button.revoke {
-    background-color: #F44336; /* Red */
-    color: white;
-}
-.action-button.revoke:hover {
-    background-color: #D32F2F; /* Darker red on hover */
-}
+.action-button.revoke { background-color: #F44336; color: white; }
+.action-button.revoke:hover { background-color: #D32F2F; }
+
+.action-button.update { background-color: #6c757d; color: white; }
+.action-button.update:hover { background-color: #5a6268; }
+
+.action-button.save { background-color: #4CAF50; color: white; }
+.action-button.save:hover { background-color: #45a049; }
+
+.action-button.cancel { background-color: #f8f9fa; color: #333; border: 1px solid #ccc; }
+.action-button.cancel:hover { background-color: #e2e6ea; }
+
 
 /* --- Status Badge Styles --- */
 .status-badge {
@@ -81,13 +81,16 @@
     font-weight: bold;
     text-transform: uppercase;
 }
-.status-badge.verified {
-    background-color: #E8F5E9; /* Light Green */
-    color: #4CAF50;
-}
-.status-badge.revoked {
-    background-color: #FFEBEE; /* Light Red */
-    color: #F44336;
+.status-badge.verified { background-color: #E8F5E9; color: #4CAF50; }
+.status-badge.revoked { background-color: #FFEBEE; color: #F44336; }
+.status-badge.pending { background-color: #FFF3E0; color: #FF9800; }
+
+/* --- Edit Mode Styles --- */
+.role-select {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    font-size: 14px;
 }
 
 /* --- Message Styles --- */
