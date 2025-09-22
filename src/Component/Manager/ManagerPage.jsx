@@ -8,6 +8,7 @@ const TAB_OPTIONS = [
     { key: 'review', label: 'Review', statuses: ['pending_review', 'PENDING_REVIEW', 'accepted', 'ACCEPTED'] },
     { key: 'assigned', label: 'Assigned', statuses: ['assigned', 'ASSIGNED'] },
     { key: 'declined', label: 'Declined', statuses: ['declined', 'DECLINED'] },
+    { key: 'used', label: 'Used', statuses: ['used', 'USED'] }, // Added Used tab
 ];
 
 function ManagerPage() {
@@ -204,7 +205,8 @@ function ManagerPage() {
             case 'declined':
                 return 'Declined';
             case 'USED':
-                return 'Used';
+            case 'used':
+                return 'Used'; // Added Used status display
             default:
                 return status;
         }
@@ -257,7 +259,7 @@ function ManagerPage() {
                     </div>
                 </header>
 
-                {/* Tabs */}
+                {/* Tabs - Updated with Used tab */}
                 <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
                     {TAB_OPTIONS.map(tab => (
                         <button
@@ -271,12 +273,12 @@ function ManagerPage() {
                     ))}
                 </div>
 
-                {/* Stats */}
+                {/* Stats - Updated with Used count */}
                 <div className="dashboard-stats">
-                    <div className="stat-card">
+                    {/* <div className="stat-card">
                         <h3>Total Submissions</h3>
                         <p>{submissions.length}</p>
-                    </div>
+                    </div> */}
                     <div className="stat-card">
                         <h3>Pending Review</h3>
                         <p>{submissions.filter(s => ['PENDING_REVIEW', 'pending_review'].includes(s.status)).length}</p>
@@ -288,6 +290,10 @@ function ManagerPage() {
                     <div className="stat-card">
                         <h3>Assigned</h3>
                         <p>{submissions.filter(s => ['ASSIGNED', 'assigned'].includes(s.status)).length}</p>
+                    </div>
+                    <div className="stat-card">
+                        <h3>Used Videos</h3>
+                        <p>{submissions.filter(s => ['USED', 'used'].includes(s.status)).length}</p>
                     </div>
                 </div>
 
@@ -434,6 +440,13 @@ function ManagerPage() {
                                                     </small>
                                                 </p>
                                             )}
+                                            {(['used', 'USED'].includes(submission.status)) && (
+                                                <p>
+                                                    <small style={{ color: '#28a745', fontWeight: '600' }}>
+                                                        🎬 This video has been completed and used in production
+                                                    </small>
+                                                </p>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -484,6 +497,10 @@ function ManagerPage() {
                             <div className="quick-stat">
                                 <span className="stat-label">Pending:</span>
                                 <span className="stat-value">{submissions.filter(s => s.status === 'PENDING_REVIEW' || s.status === 'pending_review').length}</span>
+                            </div>
+                            <div className="quick-stat">
+                                <span className="stat-label">Used Videos:</span>
+                                <span className="stat-value">{submissions.filter(s => s.status === 'USED' || s.status === 'used').length}</span>
                             </div>
                             <div className="quick-stat">
                                 <span className="stat-label">Total Editors:</span>

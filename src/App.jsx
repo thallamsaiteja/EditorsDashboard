@@ -18,11 +18,9 @@ function App() {
       <Routes>
         {/* Main route: Shows the Homepage */}
         <Route path='/' element={<Homepage />} />
-
         {/* Auth routes */}
         <Route path='/Login' element={<Login />} />
         <Route path='/Registration' element={<Registration />} />
-        
         {/* Dashboard routes */}
         <Route path='/managerdashboard' element={<ManagerPage />} />
         <Route path='/editordashboard' element={<EditorPage />} />
@@ -34,5 +32,4 @@ function App() {
     </BrowserRouter>
   );
 }
-
 export default App;
