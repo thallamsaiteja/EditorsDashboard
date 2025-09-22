@@ -67,7 +67,7 @@ export default function Login() {
                 // --- THIS IS THE NEW, CORRECT NAVIGATION LOGIC ---
                 if (role === 'MANAGER') {
                     // If the user is a Manager, send them directly to the Editors List page
-                    navigate('/manager/editorslist');
+                    navigate('/managerdashboard/EditorsList');
                 } else if (role === 'EDITOR') {
                     // If the user is an Editor, send them to their dashboard
                     navigate('/editor/dashboard');
