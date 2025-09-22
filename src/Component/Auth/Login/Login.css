@@ -70,7 +70,7 @@
     display: flex;
     justify-content: space-between;
     width: 100%;
-    max-width: 480px; /* Match the card width */
+    max-width: 400px; /* Match the card width */
     margin-top: 20px;
 }
 
@@ -102,4 +102,9 @@
     transform: translateY(-50%);
     cursor: pointer;
     color: #888;
+}
+.error-messages {
+  color: #D32F2F; /* Red for errors */
+  font-size: 14px;
+  text-align: left;
 }
