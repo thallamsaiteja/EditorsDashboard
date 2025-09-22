@@ -22,6 +22,17 @@ export default function EditorPage() {
   const [editorNotes, setEditorNotes] = useState('');
   const eventSourceRef = useRef(null);
 
+  // Helper function to calculate stats from assignments
+  const calculateStats = (assignmentsList) => {
+    const stats = {
+      total_assignments: assignmentsList.length,
+      in_progress: assignmentsList.filter(a => a.assignment_status === 'IN_PROGRESS').length,
+      completed: assignmentsList.filter(a => a.assignment_status === 'COMPLETED').length,
+      revision_needed: assignmentsList.filter(a => a.assignment_status === 'REVISION_NEEDED').length
+    };
+    return stats;
+  };
+
   // Helper function to get date classification
   const getDateClassification = (dateTimeString) => {
     if (!dateTimeString) return 'old';
@@ -99,7 +110,7 @@ export default function EditorPage() {
         }
         const data = await response.json();
         setAssignments(data.assignments || []);
-        setStats(data.stats || { total_assignments: 0, in_progress: 0, completed: 0, revision_needed: 0 });
+        setStats(data.stats || calculateStats(data.assignments || []));
         setEditorProfile(data.editor_profile || null);
         setConnectionStatus('Connected');
         console.log('Initial editor data loaded:', data);
@@ -144,8 +155,8 @@ export default function EditorPage() {
                   submission_id: updateData.video_submission_id,
                   video_url: updateData.video_url,
                   volunteer_name: updateData.volunteer_name,
-                  manager_name: updateData.assigned_editor_name || 'Unknown Manager', // Updated
-                  manager_id: updateData.assigned_manager_id, // Added
+                  manager_name: updateData.assigned_editor_name || 'Unknown Manager',
+                  manager_id: updateData.assigned_manager_id,
                   assignment_status: updateData.status,
                   submission_status: updateData.submission_status,
                   assigned_at: updateData.assigned_at,
@@ -155,14 +166,17 @@ export default function EditorPage() {
                   manager_notes: null,
                   received_at: null
                 };
-                return [newAssignment, ...prevAssignments];
+                const updatedAssignments = [newAssignment, ...prevAssignments];
+                // Update stats immediately when assignments change
+                setStats(calculateStats(updatedAssignments));
+                return updatedAssignments;
               }
               return prevAssignments;
             });
           } else if (updateData.event === 'assignment_update') {
             console.log("Assignment status updated:", updateData);
-            setAssignments(prevAssignments =>
-              prevAssignments.map(assignment =>
+            setAssignments(prevAssignments => {
+              const updatedAssignments = prevAssignments.map(assignment =>
                 assignment.assignment_id === updateData.assignment_id
                   ? {
                     ...assignment,
@@ -172,8 +186,11 @@ export default function EditorPage() {
                     editor_notes: updateData.editor_notes
                   }
                   : assignment
-              )
-            );
+              );
+              // Update stats immediately when assignments change
+              setStats(calculateStats(updatedAssignments));
+              return updatedAssignments;
+            });
           }
         } catch (error) {
           console.error("Error parsing editor SSE data:", error);
@@ -253,9 +270,9 @@ export default function EditorPage() {
       const result = await response.json();
       console.log("Assignment completed successfully:", result);
 
-      // The SSE will update the UI automatically, but we can also update locally
-      setAssignments(prevAssignments =>
-        prevAssignments.map(assignment =>
+      // Update assignments and stats immediately
+      setAssignments(prevAssignments => {
+        const updatedAssignments = prevAssignments.map(assignment =>
           assignment.assignment_id === selectedAssignment.assignment_id
             ? {
               ...assignment,
@@ -265,8 +282,11 @@ export default function EditorPage() {
               editor_notes: editorNotes.trim() || assignment.editor_notes
             }
             : assignment
-        )
-      );
+        );
+        // Update stats immediately
+        setStats(calculateStats(updatedAssignments));
+        return updatedAssignments;
+      });
 
       handleCloseModal();
     } catch (error) {
@@ -329,7 +349,7 @@ export default function EditorPage() {
           </div>
         </header>
 
-        {/* Filter Tabs */}
+        {/* Filter Tabs - Now with live updating counts */}
         <div className="editor-tabs">
           <button
             className={`tab-button ${currentView === 'in_progress' ? 'active' : ''}`}
@@ -458,7 +478,7 @@ export default function EditorPage() {
                     )}
                   </div>
 
-                  {/* Assignment Details - Updated with Manager Info */}
+                  {/* Assignment Details */}
                   <div className="task-card__details">
                     <h3 className="task-card__title">Video Assignment</h3>
                     <p className="task-card__meta"><strong>From:</strong> {assignment.volunteer_name}</p>
@@ -544,7 +564,7 @@ export default function EditorPage() {
         <Link to="/" className="sidebar-link">Back to Home</Link>
       </aside>
 
-      {/* Completion Modal - Enhanced with Manager Context */}
+      {/* Completion Modal */}
       {showModal && (
         <div className="modal-backdrop">
           <div className="modal-content">
