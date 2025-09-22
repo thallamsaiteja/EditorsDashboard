@@ -29,24 +29,10 @@ const handleResponse = async (response) => {
  * A helper function to retrieve the saved JWT token from the browser's cookies.
  */
 const getAuthToken = () => {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; authToken=`);
-    if (parts.length === 2) return parts.pop().split(';').shift();
-    return null;
+    return localStorage.getItem('authToken');
 };
 
-/**
- * Helper function to clear authentication token
- */
-const clearAuthToken = () => {
-    document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
-};
 
-// === AUTHENTICATION APIs ===
-
-/**
- * Register a new editor account
- */
 export const registerEditorApi = async (userData) => {
     const response = await fetch(`${BASE_URL}/register/editor`, {
         method: 'POST',
@@ -167,43 +153,25 @@ export const getCurrentUserApi = async () => {
 };
 
 /**
- * Get current user's permissions
+ * Approves a user by updating their role and verification status. Requires an admin token.
+ * @param {string} userId - The UUID of the user to approve.
+ * @param {string} newRole - The new role to assign (e.g., 'EDITOR' or 'MANAGER').
  */
-export const getCurrentUserPermissionsApi = async () => {
+export const approveUserApi = async (userId, newRole) => {
     const token = getAuthToken();
     if (!token) throw new Error('Authentication token not found. Please log in.');
 
-    const response = await fetch(`${BASE_URL}/me/permissions`, {
+    const response = await fetch(`${BASE_URL}/admin/approve-user/${userId}`, {
+        method: 'PUT',
         headers: {
+            'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`,
         },
+        body: JSON.stringify({ new_role: newRole }),
     });
     return handleResponse(response);
 };
 
-// === AVAILABILITY CHECK APIs ===
-
-/**
- * Check if username is available
- */
-export const checkUsernameAvailabilityApi = async (username) => {
-    const response = await fetch(`${BASE_URL}/check-username/${encodeURIComponent(username)}`);
-    return handleResponse(response);
-};
-
-/**
- * Check if email is available
- */
-export const checkEmailAvailabilityApi = async (email) => {
-    const response = await fetch(`${BASE_URL}/check-email/${encodeURIComponent(email)}`);
-    return handleResponse(response);
-};
-
-// === MANAGER APIs ===
-
-/**
- * Get team list for managers (pending and approved editors)
- */
 export const getManagerTeamApi = async () => {
     const token = getAuthToken();
     if (!token) throw new Error('Authentication token not found.');
@@ -215,55 +183,38 @@ export const getManagerTeamApi = async () => {
 };
 
 /**
- * Update user details (role, active status, verification) - Manager level
+ * Updates a user's status (to accept or revoke them).
+ * This function can be used by both Managers and Admins.
+ * @param {string} userId - The UUID of the user to update.
+ * @param {boolean} isActive - The new active status.
+ * @param {boolean} isVerified - The new verified status.
  */
-export const updateUserApi = async (userId, updateData) => {
+export const updateUserStatusApi = async (userId, isActive, isVerified) => {
     const token = getAuthToken();
     if (!token) throw new Error('Authentication token not found.');
 
-    const response = await fetch(`${BASE_URL}/manager/users/${userId}`, {
+    const response = await fetch(`${BASE_URL}/manager/users/${userId}/status`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify(updateData),
+        body: JSON.stringify({ is_active: isActive, is_verified: isVerified }),
     });
     return handleResponse(response);
 };
 
-/**
- * Approve/reject editor by updating status - Manager function
- */
-export const updateUserStatusApi = async (userId, isActive, isVerified) => {
-    const updateData = {
-        is_active: isActive,
-        is_verified: isVerified
-    };
 
-    return updateUserApi(userId, updateData);
-};
+// --- ADMIN DASHBOARD API FUNCTIONS (You will need these later) ---
 
 /**
- * Assign role to user - Manager function
- */
-export const assignUserRoleApi = async (userId, newRole) => {
-    const updateData = {
-        role: newRole
-    };
-
-    return updateUserApi(userId, updateData);
-};
-
-// === ADMIN APIs ===
-
-/**
- * Get all users list - Admin only
+ * Fetches the list of all users (pending, editors, and managers) for an admin's view.
  */
 export const getAdminUserListApi = async () => {
     const token = getAuthToken();
     if (!token) throw new Error('Authentication token not found.');
 
+    // This endpoint should be created on your backend
     const response = await fetch(`${BASE_URL}/admin/users`, {
         headers: { 'Authorization': `Bearer ${token}` },
     });
@@ -271,163 +222,23 @@ export const getAdminUserListApi = async () => {
 };
 
 /**
- * Change user role - Admin only
+ * Approves a user by assigning a new role. Used by Admins.
+ * @param {string} userId - The UUID of the user to approve.
+ * @param {string} newRole - The new role to assign (e.g., 'EDITOR' or 'MANAGER').
  */
-export const changeUserRoleApi = async (userId, newRole) => {
+export const approveUserRoleApi = async (userId, newRole) => {
     const token = getAuthToken();
     if (!token) throw new Error('Authentication token not found.');
-
-    const response = await fetch(`${BASE_URL}/admin/users/${userId}/role`, {
+    
+    // This endpoint should be created on your backend
+    const response = await fetch(`${BASE_URL}/admin/approve-user/${userId}`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify(newRole), // Send role directly as per your backend
+        body: JSON.stringify({ new_role: newRole }),
     });
     return handleResponse(response);
 };
 
-/**
- * Legacy: Approve user API (keeping for backward compatibility)
- */
-export const approveUserApi = async (userId, newRole) => {
-    return changeUserRoleApi(userId, newRole);
-};
-
-/**
- * Legacy: Approve user role API (keeping for backward compatibility)
- */
-export const approveUserRoleApi = async (userId, newRole) => {
-    return changeUserRoleApi(userId, newRole);
-};
-
-// === ROLE VERIFICATION APIs ===
-
-/**
- * Verify editor access
- */
-export const verifyEditorAccessApi = async () => {
-    const token = getAuthToken();
-    if (!token) throw new Error('Authentication token not found.');
-
-    const response = await fetch(`${BASE_URL}/verify/editor`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-    });
-    return handleResponse(response);
-};
-
-/**
- * Verify manager access
- */
-export const verifyManagerAccessApi = async () => {
-    const token = getAuthToken();
-    if (!token) throw new Error('Authentication token not found.');
-
-    const response = await fetch(`${BASE_URL}/verify/manager`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-    });
-    return handleResponse(response);
-};
-
-/**
- * Verify admin access
- */
-export const verifyAdminAccessApi = async () => {
-    const token = getAuthToken();
-    if (!token) throw new Error('Authentication token not found.');
-
-    const response = await fetch(`${BASE_URL}/verify/admin`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-    });
-    return handleResponse(response);
-};
-
-// === HEALTH CHECK APIs ===
-
-/**
- * Check authentication service health
- */
-export const checkAuthHealthApi = async () => {
-    const response = await fetch(`${BASE_URL}/health`);
-    return handleResponse(response);
-};
-
-// === ERROR HANDLING UTILITIES ===
-
-/**
- * Handle authentication errors globally
- */
-export const handleAuthError = (error) => {
-    if (error.message.includes('token') || error.message.includes('401')) {
-        clearAuthToken();
-        window.location.href = '/login';
-    }
-    return error;
-};
-
-/**
- * Create authenticated fetch wrapper
- */
-export const authenticatedFetch = async (url, options = {}) => {
-    const token = getAuthToken();
-
-    if (!token) {
-        throw new Error('Authentication token not found. Please log in.');
-    }
-
-    const defaultOptions = {
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            ...options.headers,
-        },
-    };
-
-    const response = await fetch(url, { ...options, ...defaultOptions });
-
-    if (response.status === 401) {
-        clearAuthToken();
-        window.location.href = '/login';
-        throw new Error('Session expired. Please log in again.');
-    }
-
-    return handleResponse(response);
-};
-
-// === SECURITY UTILITIES ===
-
-/**
- * Check if user is authenticated (has valid token)
- */
-export const isAuthenticated = () => {
-    const token = getAuthToken();
-    return !!token;
-};
-
-/**
- * Get user info from current session (secure way via API call)
- */
-export const getCurrentUserSecure = async () => {
-    try {
-        return await getCurrentUserApi();
-    } catch (error) {
-        clearAuthToken();
-        return null;
-    }
-};
-
-// === DEBUGGING UTILITIES (Remove in production) ===
-
-/**
- * Test role access (development only)
- */
-export const testRoleAccessApi = async () => {
-    const token = getAuthToken();
-    if (!token) throw new Error('Authentication token not found.');
-
-    const response = await fetch(`${BASE_URL}/test/roles`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-    });
-    return handleResponse(response);
-};

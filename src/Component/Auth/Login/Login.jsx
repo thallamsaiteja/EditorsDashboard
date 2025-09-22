@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './Login.css';
 
-// Import the necessary functions and schemas with the correct paths
+// 1. Import the necessary functions and schemas with the correct paths
 import { loginUserApi } from '../../../apiService.js';
 import { loginSchema } from '../../../validateSchema.js';
 
@@ -11,7 +11,7 @@ export default function Login() {
         username: "",
         password: "",
     });
-
+    
     const [errors, setErrors] = useState({});
     const [apiError, setApiError] = useState("");
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -40,27 +40,46 @@ export default function Login() {
                 fieldErrors[error.path[0]] = error.message;
             }
             setErrors(fieldErrors);
-            setIsLoading(false);
             return;
         }
 
         try {
-            // Call the secure login API
             const data = await loginUserApi(result.data);
 
             if (data && data.access_token) {
-                const { access_token, expires_in, redirect_url } = data;
+                const { access_token, expires_in } = data;
+                
+                const decodedToken = jwtDecode(access_token);
+                const { role, is_verified } = decodedToken;
 
-                // Store the token securely
+                if (role === 'NOT_SELECTED') {
+                    setApiError("Your account is pending approval from an administrator.");
+                    return;
+                }
+                
+                if (is_verified === false && role !== 'ADMIN') {
+                    setApiError("Your account has not been verified by an administrator yet.");
+                    return;
+                }
+                
+                // If all checks pass, store the token
                 document.cookie = `authToken=${access_token}; path=/; max-age=${expires_in}; SameSite=Lax;`;
-
-                // SECURE: Navigate to the server-determined URL
-                if (redirect_url) {
-                    console.log('Redirecting to:', redirect_url);
-                    navigate(redirect_url);
+                
+                // --- THIS IS THE NEW, CORRECT NAVIGATION LOGIC ---
+                if (role === 'MANAGER') {
+                    // If the user is a Manager, send them directly to the Editors List page
+                    navigate('/manager/editorslist');
+                } else if (role === 'EDITOR') {
+                    // If the user is an Editor, send them to their dashboard
+                    navigate('/editor/dashboard');
+                } else if (role === 'ADMIN') {
+                    // We will handle the admin case later
+                    navigate('/admin/dashboard');
                 } else {
-                    // Fallback if no redirect_url provided
-                    setApiError("Login successful but no dashboard assigned. Please contact administrator.");
+                    // Fallback for any other case (like the 'USER' role)
+                    setApiError("Your role does not have an assigned dashboard. Please contact an administrator.");
+                    // Clear the token since they can't go anywhere
+                    document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
                 }
 
             } else {
@@ -68,18 +87,7 @@ export default function Login() {
             }
 
         } catch (err) {
-            // Handle specific error cases
-            if (err.message.includes("pending approval")) {
-                setApiError("Your account is pending approval from an administrator. Please wait.");
-            } else if (err.message.includes("not been verified")) {
-                setApiError("Your account has not been verified by an administrator yet.");
-            } else if (err.message.includes("deactivated")) {
-                setApiError("This account has been deactivated. Please contact support.");
-            } else {
-                setApiError(err.message || "An error occurred during login. Please try again.");
-            }
-        } finally {
-            setIsLoading(false);
+            setApiError(err.message);
         }
     };
 
@@ -90,7 +98,7 @@ export default function Login() {
 
             <div className='login_card'>
                 <form onSubmit={handleSubmit} noValidate>
-                    <input
+                    <input 
                         name="username"
                         value={formData.username}
                         onChange={handleInputChange}
@@ -137,7 +145,7 @@ export default function Login() {
 
             <div className="login_links">
                 <Link to="/forgot-password">Forgot your password?</Link>
-                <Link to="/Registration">Don't have an account? Register</Link>
+                <Link to="/register">Don't have an account? Register</Link>
             </div>
         </div>
     );
