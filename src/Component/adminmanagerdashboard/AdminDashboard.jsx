@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { BarChart, Bar, LineChart, Line, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import './AdminDashboard.css';
 
@@ -9,6 +9,7 @@ const API_BASE_URL = 'http://localhost:8000/api/v1/admin';
 export default function AdminDashboard() {
     // Main state
     const [dashboardData, setDashboardData] = useState(null);
+    const [adminProfile, setAdminProfile] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [connectionStatus, setConnectionStatus] = useState('Disconnected');
     const [lastUpdate, setLastUpdate] = useState(null);
@@ -25,6 +26,63 @@ export default function AdminDashboard() {
 
     // SSE reference
     const eventSourceRef = useRef(null);
+    const navigate = useNavigate();
+
+    // Helper function to get auth token
+    const getAuthToken = () => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; authToken=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return null;
+    };
+
+    // Helper function to clear auth token and redirect to login
+    const handleAuthError = () => {
+        document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+        navigate('/login');
+    };
+
+    // Helper function to handle non-admin users
+    const handleUnauthorizedAccess = () => {
+        navigate('/unauthorized');
+    };
+
+    // Helper function to make authenticated API calls
+    const authenticatedFetch = async (url, options = {}) => {
+        const token = getAuthToken();
+
+        if (!token) {
+            handleAuthError();
+            throw new Error('No authentication token found');
+        }
+
+        const defaultOptions = {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                ...options.headers,
+            },
+        };
+
+        const response = await fetch(url, { ...options, ...defaultOptions });
+
+        if (response.status === 401) {
+            handleAuthError();
+            throw new Error('Session expired. Please log in again.');
+        }
+
+        if (response.status === 403) {
+            handleUnauthorizedAccess();
+            throw new Error('Admin access required.');
+        }
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        }
+
+        return response;
+    };
 
     // Load initial dashboard data
     const fetchDashboardData = async () => {
@@ -32,20 +90,24 @@ export default function AdminDashboard() {
             setIsLoading(true);
             setError(null);
 
-            const response = await fetch(`${API_BASE_URL}/dashboard-data`);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
+            const response = await authenticatedFetch(`${API_BASE_URL}/dashboard-data`);
             const data = await response.json();
+
             setDashboardData(data);
+            setAdminProfile(data.admin_profile || null);
             setConnectionStatus('Connected');
-            console.log('✅ Dashboard data loaded:', data);
+            console.log('✅ Admin dashboard data loaded:', data);
 
         } catch (error) {
-            console.error('❌ Failed to fetch dashboard data:', error);
+            console.error('❌ Failed to fetch admin dashboard data:', error);
             setError(error.message);
             setConnectionStatus('Error loading data');
+
+            if (error.message.includes('authentication') || error.message.includes('Session expired')) {
+                handleAuthError();
+            } else if (error.message.includes('Admin access required')) {
+                handleUnauthorizedAccess();
+            }
         } finally {
             setIsLoading(false);
         }
@@ -57,8 +119,16 @@ export default function AdminDashboard() {
             eventSourceRef.current.close();
         }
 
+        const token = getAuthToken();
+        if (!token) {
+            handleAuthError();
+            return;
+        }
+
         try {
-            const eventSource = new EventSource(`${API_BASE_URL}/dashboard-stream`);
+            // ✅ Pass token as query parameter for SSE (since headers don't work)
+            const sseUrl = `${API_BASE_URL}/dashboard-stream?token=${encodeURIComponent(token)}`;
+            const eventSource = new EventSource(sseUrl);
             eventSourceRef.current = eventSource;
 
             eventSource.onopen = () => {
@@ -113,12 +183,18 @@ export default function AdminDashboard() {
             eventSource.onerror = (error) => {
                 console.error('❌ Admin SSE error:', error);
                 setConnectionStatus('Connection Error');
-                setTimeout(() => {
-                    if (eventSource.readyState === EventSource.CLOSED) {
-                        console.log('🔄 Attempting to reconnect admin SSE...');
-                        establishSSEConnection();
-                    }
-                }, 5000);
+
+                if (error.target && error.target.readyState === EventSource.CLOSED) {
+                    setTimeout(() => {
+                        const currentToken = getAuthToken();
+                        if (currentToken) {
+                            console.log('🔄 Attempting to reconnect admin SSE...');
+                            establishSSEConnection();
+                        } else {
+                            handleAuthError();
+                        }
+                    }, 5000);
+                }
             };
 
         } catch (error) {
@@ -130,17 +206,22 @@ export default function AdminDashboard() {
     // Fetch only overview data for real-time updates
     const fetchOverviewData = async () => {
         try {
-            const response = await fetch(`${API_BASE_URL}/analytics/overview`);
-            if (response.ok) {
-                const data = await response.json();
-                setDashboardData(prev => prev ? { ...prev, overview: data.overview } : null);
-            }
+            const response = await authenticatedFetch(`${API_BASE_URL}/analytics/overview`);
+            const data = await response.json();
+            setDashboardData(prev => prev ? { ...prev, overview: data.overview } : null);
         } catch (error) {
             console.error('❌ Failed to refresh overview:', error);
         }
     };
 
     useEffect(() => {
+        // Check authentication first
+        const token = getAuthToken();
+        if (!token) {
+            handleAuthError();
+            return;
+        }
+
         fetchDashboardData();
         establishSSEConnection();
 
@@ -151,21 +232,15 @@ export default function AdminDashboard() {
                 eventSourceRef.current = null;
             }
         };
-    }, []);
+    }, [navigate]);
 
     // User management handlers
     const handleRoleChange = async (userId, newRole) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/management/users/role`, {
+            const response = await authenticatedFetch(`${API_BASE_URL}/management/users/role`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user_id: userId, new_role: newRole })
             });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.detail || 'Failed to update role');
-            }
 
             const result = await response.json();
             console.log('✅ Role updated:', result);
@@ -178,14 +253,9 @@ export default function AdminDashboard() {
 
     const handleStatusToggle = async (userId) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/management/users/${userId}/toggle-status`, {
+            const response = await authenticatedFetch(`${API_BASE_URL}/management/users/${userId}/toggle-status`, {
                 method: 'POST'
             });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.detail || 'Failed to toggle status');
-            }
 
             const result = await response.json();
             console.log('✅ Status toggled:', result);
@@ -205,20 +275,14 @@ export default function AdminDashboard() {
         }
 
         try {
-            const response = await fetch(`${API_BASE_URL}/management/users`, {
+            const response = await authenticatedFetch(`${API_BASE_URL}/management/users`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     full_name: newUserName,
                     email: newUserEmail,
                     role: newUserRole
                 })
             });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.detail || 'Failed to create user');
-            }
 
             const result = await response.json();
             console.log('✅ User created:', result);
@@ -374,8 +438,25 @@ export default function AdminDashboard() {
     return (
         <div className="admin-dashboard-layout">
             <header className="admin-header">
-                <h1>Admin Dashboard</h1>
-                <p>Platform overview, performance analytics, and management tools.</p>
+                <div className="header-content">
+                    <div className="header-text">
+                        <h1>Admin Dashboard</h1>
+                        <p>Platform overview, performance analytics, and management tools.</p>
+                    </div>
+                    {/* ✅ NEW: Admin Profile Card */}
+                    {adminProfile && (
+                        <div className="admin-profile-card">
+                            <div className="admin-profile-avatar">
+                                {adminProfile.full_name?.charAt(0) || 'A'}
+                            </div>
+                            <div className="admin-profile-info">
+                                <h3>{adminProfile.full_name || 'Administrator'}</h3>
+                                <p>{adminProfile.email}</p>
+                                <span className="admin-badge">{adminProfile.role} • {adminProfile.is_verified ? 'Verified' : 'Pending'}</span>
+                            </div>
+                        </div>
+                    )}
+                </div>
                 <div className="connection-status">
                     <span className={`status-indicator ${connectionStatus.toLowerCase().replace(' ', '-')}`}>
                         ● {connectionStatus}
@@ -672,6 +753,12 @@ export default function AdminDashboard() {
                     </div>
                 </div>
             )}
+
+            <div className="admin-footer">
+                <Link to="/" className="footer-link">Back to Home</Link>
+            </div>
         </div>
     );
 }
+
+

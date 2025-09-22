@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import './ManagerPage.css';
 
 // The base URL for your FastAPI backend
@@ -8,7 +9,7 @@ const TAB_OPTIONS = [
     { key: 'review', label: 'Review', statuses: ['pending_review', 'PENDING_REVIEW', 'accepted', 'ACCEPTED'] },
     { key: 'assigned', label: 'Assigned', statuses: ['assigned', 'ASSIGNED'] },
     { key: 'declined', label: 'Declined', statuses: ['declined', 'DECLINED'] },
-    { key: 'used', label: 'Used', statuses: ['used', 'USED'] }, // Added Used tab
+    { key: 'used', label: 'Used', statuses: ['used', 'USED'] },
 ];
 
 function ManagerPage() {
@@ -19,14 +20,62 @@ function ManagerPage() {
     const [lastUpdate, setLastUpdate] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState(TAB_OPTIONS[0].key);
+    const [managerProfile, setManagerProfile] = useState(null);
     const eventSourceRef = useRef(null);
+    const navigate = useNavigate();
+
+    // Helper function to get auth token
+    const getAuthToken = () => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; authToken=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return null;
+    };
+
+    // Helper function to clear auth token and redirect to login
+    const handleAuthError = () => {
+        document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+        navigate('/login');
+    };
+
+    // Helper function to make authenticated API calls
+    const authenticatedFetch = async (url, options = {}) => {
+        const token = getAuthToken();
+
+        if (!token) {
+            handleAuthError();
+            throw new Error('No authentication token found');
+        }
+
+        const defaultOptions = {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                ...options.headers,
+            },
+        };
+
+        const response = await fetch(url, { ...options, ...defaultOptions });
+
+        if (response.status === 401) {
+            handleAuthError();
+            throw new Error('Session expired. Please log in again.');
+        }
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        }
+
+        return response;
+    };
 
     // Helper function to get date classification
     const getDateClassification = (dateTimeString) => {
         if (!dateTimeString) return 'old';
 
         try {
-            const receivedDate = dateTimeString.split('T')[0]; // Extract date part (YYYY-MM-DD)
+            const receivedDate = dateTimeString.split('T')[0];
             const today = new Date().toISOString().split('T')[0];
             const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
@@ -52,14 +101,14 @@ function ManagerPage() {
         }
     };
 
-    // NEW: Helper function to format date with classification for "Received" field
+    // Helper function to format date with classification for "Received" field
     const formatDateTimeWithClassification = (dateTimeString) => {
         if (!dateTimeString) return 'N/A';
-        
+
         try {
             const date = new Date(dateTimeString);
             const classification = getDateClassification(dateTimeString);
-            
+
             if (classification === 'today') {
                 return `Today at ${date.toLocaleTimeString()}`;
             } else if (classification === 'yesterday') {
@@ -91,33 +140,66 @@ function ManagerPage() {
     };
 
     useEffect(() => {
+        // Check authentication first
+        const token = getAuthToken();
+        if (!token) {
+            handleAuthError();
+            return;
+        }
+
         const fetchInitialData = async () => {
             try {
                 setIsLoading(true);
-                const response = await fetch(`${API_BASE_URL}/dashboard-data`);
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                const response = await authenticatedFetch(`${API_BASE_URL}/dashboard-data`);
                 const data = await response.json();
+
                 setSubmissions(data.submissions || []);
                 setEditors(data.editors || []);
+                setManagerProfile(data.manager_profile || null);
                 setConnectionStatus('Connected');
+                console.log('Initial manager data loaded:', data);
+
             } catch (error) {
+                console.error("Failed to fetch initial manager data:", error);
                 setConnectionStatus('Error loading data');
+                if (error.message.includes('authentication') || error.message.includes('Session expired')) {
+                    handleAuthError();
+                }
             } finally {
                 setIsLoading(false);
             }
         };
 
         const establishSSEConnection = () => {
-            if (eventSourceRef.current) eventSourceRef.current.close();
-            const eventSource = new EventSource(`${API_BASE_URL}/dashboard-stream`);
+            if (eventSourceRef.current) {
+                eventSourceRef.current.close();
+            }
+
+            const token = getAuthToken();
+            if (!token) {
+                handleAuthError();
+                return;
+            }
+
+            // ✅ Pass token as query parameter for SSE (since headers don't work)
+            const sseUrl = `${API_BASE_URL}/dashboard-stream?token=${encodeURIComponent(token)}`;
+            const eventSource = new EventSource(sseUrl);
+
             eventSourceRef.current = eventSource;
 
-            eventSource.onopen = () => setConnectionStatus('Connected');
+            eventSource.onopen = () => {
+                console.log("Manager SSE connection established.");
+                setConnectionStatus('Connected');
+            };
 
             eventSource.addEventListener('dashboard-update', (event) => {
                 try {
+                    console.log("Raw manager event data:", event.data);
                     const updateData = JSON.parse(event.data);
+                    console.log("Parsed manager update data:", updateData);
                     setLastUpdate(new Date().toLocaleTimeString());
+
                     if (updateData.event === 'new_submission') {
                         setSubmissions(prev =>
                             prev.some(sub => sub.id === updateData.id) ? prev :
@@ -145,18 +227,31 @@ function ManagerPage() {
                             )
                         );
                     }
-                } catch (_) { }
+                } catch (error) {
+                    console.error("Error parsing manager SSE data:", error);
+                }
             });
 
-            eventSource.addEventListener('keep-alive', () => { });
-            eventSource.onmessage = () => { };
-            eventSource.onerror = () => {
+            eventSource.addEventListener('keep-alive', (event) => {
+                console.log("Manager keep-alive received:", event.data);
+            });
+
+            eventSource.onerror = (error) => {
+                console.error("Manager SSE error:", error);
                 setConnectionStatus('Connection Error');
-                setTimeout(() => {
-                    if (eventSource.readyState === EventSource.CLOSED) establishSSEConnection();
-                }, 5000);
+
+                if (error.target && error.target.readyState === EventSource.CLOSED) {
+                    setTimeout(() => {
+                        const currentToken = getAuthToken();
+                        if (currentToken) {
+                            console.log("Attempting to reconnect manager SSE...");
+                            establishSSEConnection();
+                        } else {
+                            handleAuthError();
+                        }
+                    }, 5000);
+                }
             };
-            return eventSource;
         };
 
         fetchInitialData();
@@ -168,7 +263,7 @@ function ManagerPage() {
                 eventSourceRef.current = null;
             }
         };
-    }, []);
+    }, [navigate]);
 
     // --- Action Handlers ---
     const updateBackendStatus = async (submissionId, newStatus, assignedEditorId = null, declineReason = null) => {
@@ -178,22 +273,34 @@ function ManagerPage() {
             url.searchParams.append('new_status', newStatus);
             if (assignedEditorId) url.searchParams.append('assigned_editor_id', assignedEditorId);
             if (declineReason) url.searchParams.append('decline_reason', declineReason);
-            const response = await fetch(url.toString(), { method: 'POST' });
-            if (!response.ok) throw new Error((await response.json()).detail || 'Failed to update status on backend.');
+
+            const response = await authenticatedFetch(url.toString(), { method: 'POST' });
+            const result = await response.json();
+
+            console.log("Status updated successfully:", result);
+
         } catch (error) {
+            console.error("Error updating status:", error);
             alert(`Error: ${error.message}`);
         }
     };
 
     const handleAccept = (submissionId) => updateBackendStatus(submissionId, 'accepted');
+
     const handleDecline = (submissionId) => {
         const reason = prompt("Please provide a reason for declining this video:");
-        if (reason && reason.trim()) updateBackendStatus(submissionId, 'declined', null, reason.trim());
-        else if (reason === '') alert("Please provide a reason for declining the video.");
+        if (reason && reason.trim()) {
+            updateBackendStatus(submissionId, 'declined', null, reason.trim());
+        } else if (reason === '') {
+            alert("Please provide a reason for declining the video.");
+        }
     };
+
     const handleAssign = (submissionId, editorId = null) => {
         const editorToAssign = editorId || selectedEditor;
-        if (!editorToAssign) return alert('Please select an editor to assign the video to.');
+        if (!editorToAssign) {
+            return alert('Please select an editor to assign the video to.');
+        }
         updateBackendStatus(submissionId, 'assigned', editorToAssign);
         setSelectedEditor('');
     };
@@ -204,7 +311,7 @@ function ManagerPage() {
         assignedCount: submissions.filter(sub =>
             (sub.status === 'ASSIGNED' || sub.status === 'assigned') &&
             sub.assigned_editor_id === editor.id &&
-            isAssignedToday(sub) // Only count today's assignments
+            isAssignedToday(sub)
         ).length
     }));
 
@@ -226,13 +333,14 @@ function ManagerPage() {
                 return 'Declined';
             case 'USED':
             case 'used':
-                return 'Used'; // Added Used status display
+                return 'Used';
             default:
                 return status;
         }
     };
 
     const getStatusClass = (status) => status.toLowerCase().replace('_', '-');
+
     const formatDateTime = (dateTimeString) => {
         if (!dateTimeString) return 'N/A';
         try {
@@ -253,7 +361,7 @@ function ManagerPage() {
         return (
             <div className="manager-dashboard-layout">
                 <div className="loading-container">
-                    <h2>Loading Dashboard...</h2>
+                    <h2>Loading Manager Dashboard...</h2>
                     <p>Please wait while we fetch the latest data.</p>
                 </div>
             </div>
@@ -279,7 +387,7 @@ function ManagerPage() {
                     </div>
                 </header>
 
-                {/* Tabs - Updated with Used tab */}
+                {/* Tabs */}
                 <div className="tabs-container" style={{ display: 'flex', gap: 8 }}>
                     {TAB_OPTIONS.map(tab => (
                         <button
@@ -293,12 +401,8 @@ function ManagerPage() {
                     ))}
                 </div>
 
-                {/* Stats - Updated with Used count */}
+                {/* Stats */}
                 <div className="dashboard-stats">
-                    {/* <div className="stat-card">
-                        <h3>Total Submissions</h3>
-                        <p>{submissions.length}</p>
-                    </div> */}
                     <div className="stat-card">
                         <h3>Pending Review</h3>
                         <p>{submissions.filter(s => ['PENDING_REVIEW', 'pending_review'].includes(s.status)).length}</p>
@@ -332,12 +436,9 @@ function ManagerPage() {
 
                                 return (
                                     <div key={submission.id} className={`video-card status-${getStatusClass(submission.status)}`}>
-                                        {/* REMOVED: Date Tag - No longer displayed in top right corner */}
-
                                         <div className="video-preview">
                                             {submission.video_url ? (
                                                 isApiVideoUrl(submission.video_url) ? (
-                                                    // Use iframe for api.video embed URLs
                                                     <iframe
                                                         src={submission.video_url}
                                                         width="100%"
@@ -354,7 +455,6 @@ function ManagerPage() {
                                                         title={`Video by ${submission.volunteer_name}`}
                                                     />
                                                 ) : (
-                                                    // Fallback to HTML5 video for other URLs
                                                     <video controls className="video-player">
                                                         <source src={submission.video_url} type="video/mp4" />
                                                         Your browser does not support the video tag.
@@ -458,9 +558,26 @@ function ManagerPage() {
                     </div>
                 </div>
             </main>
+
             <aside className="dashboard-sidebar">
                 <div className="sidebar-content">
-                    <h2>Today's Editor Workload</h2>
+                    {/* ✅ NEW: Manager Profile Card */}
+                    <div className="sidebar-profile">
+                        <div className="sidebar-profile__avatar">
+                            {managerProfile?.full_name?.charAt(0) || 'M'}
+                        </div>
+                        <h2 className="sidebar-profile__name">
+                            {managerProfile?.full_name || 'Manager Name'}
+                        </h2>
+                        <p className="sidebar-profile__email">
+                            {managerProfile?.email || 'manager@kaizernews.com'}
+                        </p>
+                        <p className="sidebar-profile__role">
+                            {managerProfile?.role || 'MANAGER'} • {managerProfile?.is_verified ? 'Verified' : 'Pending'}
+                        </p>
+                    </div>
+
+                    <h3>Today's Editor Workload</h3>
                     <ul className="editors-list">
                         {editorAssignmentCounts.map(editor => (
                             <li key={editor.id} className="editor-item">
@@ -490,6 +607,7 @@ function ManagerPage() {
                             </li>
                         ))}
                     </ul>
+
                     <div className="sidebar-stats">
                         <h3>Quick Stats</h3>
                         <div className="quick-stats">
@@ -512,6 +630,8 @@ function ManagerPage() {
                         </div>
                     </div>
                 </div>
+
+                <Link to="/" className="sidebar-link">Back to Home</Link>
             </aside>
         </div>
     );

@@ -1,18 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import './Editor.css';
 
 // The base URL for your FastAPI backend
 const API_BASE_URL = 'http://localhost:8000/api/v1/editor';
 
-// Default editor ID (temporary until auth is complete)
-const DEFAULT_EDITOR_ID = "5b6a490e-25df-4011-ae79-1a0dd4fb1fa4";
-
 export default function EditorPage() {
   const [assignments, setAssignments] = useState([]);
   const [editorProfile, setEditorProfile] = useState(null);
   const [stats, setStats] = useState({ total_assignments: 0, in_progress: 0, completed: 0, revision_needed: 0 });
-  const [currentView, setCurrentView] = useState('in_progress'); // 'in_progress', 'completed', 'revision_needed'
+  const [currentView, setCurrentView] = useState('in_progress');
   const [connectionStatus, setConnectionStatus] = useState('Disconnected');
   const [lastUpdate, setLastUpdate] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -21,6 +18,53 @@ export default function EditorPage() {
   const [completedVideoUrl, setCompletedVideoUrl] = useState('');
   const [editorNotes, setEditorNotes] = useState('');
   const eventSourceRef = useRef(null);
+  const navigate = useNavigate();
+
+  // Helper function to get auth token
+  const getAuthToken = () => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; authToken=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+  };
+
+  // Helper function to clear auth token and redirect to login
+  const handleAuthError = () => {
+    document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+    navigate('/login');
+  };
+
+  // Helper function to make authenticated API calls
+  const authenticatedFetch = async (url, options = {}) => {
+    const token = getAuthToken();
+
+    if (!token) {
+      handleAuthError();
+      throw new Error('No authentication token found');
+    }
+
+    const defaultOptions = {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    };
+
+    const response = await fetch(url, { ...options, ...defaultOptions });
+
+    if (response.status === 401) {
+      handleAuthError();
+      throw new Error('Session expired. Please log in again.');
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+
+    return response;
+  };
 
   // Helper function to calculate stats from assignments
   const calculateStats = (assignmentsList) => {
@@ -64,14 +108,14 @@ export default function EditorPage() {
     }
   };
 
-  // NEW: Helper function to format date with classification for "Assigned" field
+  // Helper function to format date with classification for "Assigned" field
   const formatDateTimeWithClassification = (dateTimeString) => {
     if (!dateTimeString) return 'N/A';
-    
+
     try {
       const date = new Date(dateTimeString);
       const classification = getDateClassification(dateTimeString);
-      
+
       if (classification === 'today') {
         return `Today at ${date.toLocaleTimeString()}`;
       } else if (classification === 'yesterday') {
@@ -120,23 +164,33 @@ export default function EditorPage() {
   };
 
   useEffect(() => {
+    // Check authentication first
+    const token = getAuthToken();
+    if (!token) {
+      handleAuthError();
+      return;
+    }
+
     // Function to fetch initial data
     const fetchInitialData = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch(`${API_BASE_URL}/dashboard-data?editor_id=${DEFAULT_EDITOR_ID}`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+
+        const response = await authenticatedFetch(`${API_BASE_URL}/dashboard-data`);
         const data = await response.json();
+
         setAssignments(data.assignments || []);
         setStats(data.stats || calculateStats(data.assignments || []));
         setEditorProfile(data.editor_profile || null);
         setConnectionStatus('Connected');
         console.log('Initial editor data loaded:', data);
+
       } catch (error) {
         console.error("Failed to fetch initial editor data:", error);
         setConnectionStatus('Error loading data');
+        if (error.message.includes('authentication') || error.message.includes('Session expired')) {
+          handleAuthError();
+        }
       } finally {
         setIsLoading(false);
       }
@@ -148,7 +202,16 @@ export default function EditorPage() {
         eventSourceRef.current.close();
       }
 
-      const eventSource = new EventSource(`${API_BASE_URL}/dashboard-stream?editor_id=${DEFAULT_EDITOR_ID}`);
+      const token = getAuthToken();
+      if (!token) {
+        handleAuthError();
+        return;
+      }
+
+      // ✅ Pass token as query parameter for SSE (since headers don't work)
+      const sseUrl = `${API_BASE_URL}/dashboard-stream?token=${encodeURIComponent(token)}`;
+      const eventSource = new EventSource(sseUrl);
+
       eventSourceRef.current = eventSource;
 
       eventSource.onopen = () => {
@@ -187,7 +250,6 @@ export default function EditorPage() {
                   received_at: null
                 };
                 const updatedAssignments = [newAssignment, ...prevAssignments];
-                // Update stats immediately when assignments change
                 setStats(calculateStats(updatedAssignments));
                 return updatedAssignments;
               }
@@ -207,7 +269,6 @@ export default function EditorPage() {
                   }
                   : assignment
               );
-              // Update stats immediately when assignments change
               setStats(calculateStats(updatedAssignments));
               return updatedAssignments;
             });
@@ -225,12 +286,19 @@ export default function EditorPage() {
       eventSource.onerror = (error) => {
         console.error("Editor SSE error:", error);
         setConnectionStatus('Connection Error');
-        setTimeout(() => {
-          if (eventSource.readyState === EventSource.CLOSED) {
-            console.log("Attempting to reconnect editor SSE...");
-            establishSSEConnection();
-          }
-        }, 5000);
+
+        // Check if it's an auth error (401)
+        if (error.target && error.target.readyState === EventSource.CLOSED) {
+          setTimeout(() => {
+            const currentToken = getAuthToken();
+            if (currentToken) {
+              console.log("Attempting to reconnect editor SSE...");
+              establishSSEConnection();
+            } else {
+              handleAuthError();
+            }
+          }, 5000);
+        }
       };
     };
 
@@ -245,7 +313,7 @@ export default function EditorPage() {
         eventSourceRef.current = null;
       }
     };
-  }, []);
+  }, [navigate]);
 
   // Handle opening completion modal
   const handleOpenModal = (assignment) => {
@@ -274,20 +342,14 @@ export default function EditorPage() {
       const url = new URL(`${API_BASE_URL}/complete-assignment`);
       url.searchParams.append('assignment_id', selectedAssignment.assignment_id);
       url.searchParams.append('completed_video_url', completedVideoUrl.trim());
-      url.searchParams.append('editor_id', DEFAULT_EDITOR_ID);
 
       if (editorNotes && editorNotes.trim()) {
         url.searchParams.append('editor_notes', editorNotes.trim());
       }
 
-      const response = await fetch(url.toString(), { method: 'POST' });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to complete assignment');
-      }
-
+      const response = await authenticatedFetch(url.toString(), { method: 'POST' });
       const result = await response.json();
+
       console.log("Assignment completed successfully:", result);
 
       // Update assignments and stats immediately
@@ -303,12 +365,12 @@ export default function EditorPage() {
             }
             : assignment
         );
-        // Update stats immediately
         setStats(calculateStats(updatedAssignments));
         return updatedAssignments;
       });
 
       handleCloseModal();
+
     } catch (error) {
       console.error("Error completing assignment:", error);
       alert(`Error: ${error.message}`);
@@ -406,9 +468,6 @@ export default function EditorPage() {
 
                 return (
                   <div key={assignment.assignment_id} className={`task-card status-${assignment.assignment_status.toLowerCase()}`}>
-                    {/* REMOVED: Date Tag - No longer displayed in top right corner */}
-                    {/* REMOVED: Download Button - No longer displayed in top left corner */}
-
                     {/* Video Preview */}
                     <div className="task-card__preview">
                       {assignment.video_url ? (
@@ -454,7 +513,7 @@ export default function EditorPage() {
                         </span>
                       </p>
 
-                      {/* Download Button - NOW INSIDE DETAILS SECTION */}
+                      {/* Download Button */}
                       <div className="task-card__download">
                         <button
                           className="btn btn--download"
