@@ -52,6 +52,26 @@ function ManagerPage() {
         }
     };
 
+    // NEW: Helper function to format date with classification for "Received" field
+    const formatDateTimeWithClassification = (dateTimeString) => {
+        if (!dateTimeString) return 'N/A';
+        
+        try {
+            const date = new Date(dateTimeString);
+            const classification = getDateClassification(dateTimeString);
+            
+            if (classification === 'today') {
+                return `Today at ${date.toLocaleTimeString()}`;
+            } else if (classification === 'yesterday') {
+                return `Yesterday at ${date.toLocaleTimeString()}`;
+            } else {
+                return date.toLocaleString();
+            }
+        } catch (error) {
+            return dateTimeString;
+        }
+    };
+
     // Helper function to check if assignment was made today
     const isAssignedToday = (submission) => {
         if (!submission.received_at || !['assigned', 'ASSIGNED'].includes(submission.status)) return false;
@@ -260,7 +280,7 @@ function ManagerPage() {
                 </header>
 
                 {/* Tabs - Updated with Used tab */}
-                <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+                <div className="tabs-container" style={{ display: 'flex', gap: 8 }}>
                     {TAB_OPTIONS.map(tab => (
                         <button
                             key={tab.key}
@@ -297,162 +317,145 @@ function ManagerPage() {
                     </div>
                 </div>
 
-                {/* Video Grid (Tab filtered) */}
-                <div className="video-grid">
-                    {filteredSubmissions.length === 0 ? (
-                        <div className="no-submissions">
-                            <h3>No submissions found</h3>
-                            <p>Submissions will appear here automatically when volunteers submit videos.</p>
-                        </div>
-                    ) : (
-                        filteredSubmissions.map((submission) => {
-                            const dateClassification = getDateClassification(submission.received_at);
-                            const dateTag = getDateTag(dateClassification);
+                {/* Video Grid (Tab filtered) - NOW SCROLLABLE */}
+                <div className="video-grid-container">
+                    <div className="video-grid">
+                        {filteredSubmissions.length === 0 ? (
+                            <div className="no-submissions">
+                                <h3>No submissions found</h3>
+                                <p>Submissions will appear here automatically when volunteers submit videos.</p>
+                            </div>
+                        ) : (
+                            filteredSubmissions.map((submission) => {
+                                const dateClassification = getDateClassification(submission.received_at);
+                                const dateTag = getDateTag(dateClassification);
 
-                            return (
-                                <div key={submission.id} className={`video-card status-${getStatusClass(submission.status)}`}>
-                                    {/* Date Tag - Always Visible (No Hover) */}
-                                    <div style={{
-                                        position: 'absolute',
-                                        top: 8,
-                                        right: 8,
-                                        zIndex: 10,
-                                        padding: '4px 8px',
-                                        borderRadius: '12px',
-                                        fontSize: '11px',
-                                        fontWeight: '600',
-                                        textTransform: 'uppercase',
-                                        backgroundColor: dateClassification === 'today' ? '#d4edda' :
-                                            dateClassification === 'yesterday' ? '#fff3cd' : '#f8d7da',
-                                        color: dateClassification === 'today' ? '#155724' :
-                                            dateClassification === 'yesterday' ? '#856404' : '#721c24',
-                                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                                        pointerEvents: 'none' // Removes all hover effects completely
-                                    }}>
-                                        {dateTag.text}
-                                    </div>
+                                return (
+                                    <div key={submission.id} className={`video-card status-${getStatusClass(submission.status)}`}>
+                                        {/* REMOVED: Date Tag - No longer displayed in top right corner */}
 
-                                    <div className="video-preview">
-                                        {submission.video_url ? (
-                                            isApiVideoUrl(submission.video_url) ? (
-                                                // Use iframe for api.video embed URLs
-                                                <iframe
-                                                    src={submission.video_url}
-                                                    width="100%"
-                                                    height="100%"
-                                                    frameBorder="0"
-                                                    scrolling="no"
-                                                    allowFullScreen
-                                                    style={{
-                                                        width: '100%',
-                                                        height: '100%',
-                                                        border: 'none',
-                                                        borderRadius: '4px'
-                                                    }}
-                                                    title={`Video by ${submission.volunteer_name}`}
-                                                />
+                                        <div className="video-preview">
+                                            {submission.video_url ? (
+                                                isApiVideoUrl(submission.video_url) ? (
+                                                    // Use iframe for api.video embed URLs
+                                                    <iframe
+                                                        src={submission.video_url}
+                                                        width="100%"
+                                                        height="100%"
+                                                        frameBorder="0"
+                                                        scrolling="no"
+                                                        allowFullScreen
+                                                        style={{
+                                                            width: '100%',
+                                                            height: '100%',
+                                                            border: 'none',
+                                                            borderRadius: '4px'
+                                                        }}
+                                                        title={`Video by ${submission.volunteer_name}`}
+                                                    />
+                                                ) : (
+                                                    // Fallback to HTML5 video for other URLs
+                                                    <video controls className="video-player">
+                                                        <source src={submission.video_url} type="video/mp4" />
+                                                        Your browser does not support the video tag.
+                                                    </video>
+                                                )
                                             ) : (
-                                                // Fallback to HTML5 video for other URLs
-                                                <video controls className="video-player">
-                                                    <source src={submission.video_url} type="video/mp4" />
-                                                    Your browser does not support the video tag.
-                                                </video>
-                                            )
-                                        ) : (
-                                            <div className="player-placeholder">
-                                                <p>Video Preview</p>
-                                                <small>Processing...</small>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="video-info">
-                                        <p><strong>Volunteer:</strong> {submission.volunteer_name}</p>
-                                        <p><strong>Status:</strong>
-                                            <span className={`status-badge status-${getStatusClass(submission.status)}`}>
-                                                {getStatusText(submission.status)}
-                                            </span>
-                                        </p>
-                                        <p><strong>Received:</strong> {formatDateTime(submission.received_at)}</p>
-                                        <p><strong>ID:</strong> <code>{submission.id.slice(0, 8)}...</code></p>
-                                        {submission.decline_reason && (
-                                            <p><strong>Decline Reason:</strong> <em>{submission.decline_reason}</em></p>
-                                        )}
-                                    </div>
-
-                                    {/* Action Section: Only show on pending_review and accepted tabs */}
-                                    {(['pending_review', 'PENDING_REVIEW'].includes(submission.status) && activeTab === 'review') && (
-                                        <div className="action-buttons">
-                                            <button className="btn btn-accept" onClick={() => handleAccept(submission.id)}>
-                                                ✓ Accept
-                                            </button>
-                                            <button className="btn btn-decline" onClick={() => handleDecline(submission.id)}>
-                                                ✗ Decline
-                                            </button>
+                                                <div className="player-placeholder">
+                                                    <p>Video Preview</p>
+                                                    <small>Processing...</small>
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
+                                        <div className="video-info">
+                                            <p><strong>Volunteer:</strong> {submission.volunteer_name}</p>
+                                            <p><strong>Status:</strong>
+                                                <span className={`status-badge status-${getStatusClass(submission.status)}`}>
+                                                    {getStatusText(submission.status)}
+                                                </span>
+                                            </p>
+                                            <p><strong>Received:</strong> {formatDateTimeWithClassification(submission.received_at)}</p>
+                                            <p><strong>ID:</strong> <code>{submission.id.slice(0, 8)}...</code></p>
+                                            {submission.decline_reason && (
+                                                <p><strong>Decline Reason:</strong> <em>{submission.decline_reason}</em></p>
+                                            )}
+                                        </div>
 
-                                    {(submission.status === 'accepted' || submission.status === 'ACCEPTED') && activeTab === 'review' && (
-                                        <div className="assignment-section">
-                                            <div style={{ display: 'flex', gap: '8px' }}>
-                                                <select
-                                                    className="editor-dropdown"
-                                                    onChange={e => setSelectedEditor(e.target.value)}
-                                                    value={selectedEditor}
-                                                >
-                                                    <option value="">-- Select Editor --</option>
-                                                    {editors.map(editor => (
-                                                        <option key={editor.id} value={editor.id}>
-                                                            {editor.name}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                                <button
-                                                    className="btn btn-assign"
-                                                    onClick={() => handleAssign(submission.id)}
-                                                >
-                                                    Assign
+                                        {/* Action Section: Only show on pending_review and accepted tabs */}
+                                        {(['pending_review', 'PENDING_REVIEW'].includes(submission.status) && activeTab === 'review') && (
+                                            <div className="action-buttons">
+                                                <button className="btn btn-accept" onClick={() => handleAccept(submission.id)}>
+                                                    ✓ Accept
+                                                </button>
+                                                <button className="btn btn-decline" onClick={() => handleDecline(submission.id)}>
+                                                    ✗ Decline
                                                 </button>
                                             </div>
-                                            <div className="quick-assign-buttons">
-                                                <small>Quick assign:</small>
-                                                {editors.map(editor => (
-                                                    <button
-                                                        key={editor.id}
-                                                        className="btn btn-quick-assign"
-                                                        onClick={() => handleAssign(submission.id, editor.id)}
-                                                        title={`Assign to ${editor.name}`}
-                                                    >
-                                                        {editor.name.split(' ').map(n => n[0]).join('')}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
+                                        )}
 
-                                    {/* Final Status Message for assigned/declined/used */}
-                                    {(['assigned', 'ASSIGNED', 'declined', 'DECLINED', 'used', 'USED'].includes(submission.status)) && (
-                                        <div className="final-status-message">
-                                            <p>✓ This video has been processed.</p>
-                                            {(['assigned', 'ASSIGNED'].includes(submission.status) && submission.assigned_editor_id) && (
-                                                <p>
-                                                    <small>
-                                                        Assigned to: {editors.find(e => e.id === submission.assigned_editor_id)?.name || 'Unknown Editor'}
-                                                    </small>
-                                                </p>
-                                            )}
-                                            {(['used', 'USED'].includes(submission.status)) && (
-                                                <p>
-                                                    <small style={{ color: '#28a745', fontWeight: '600' }}>
-                                                        🎬 This video has been completed and used in production
-                                                    </small>
-                                                </p>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })
-                    )}
+                                        {(submission.status === 'accepted' || submission.status === 'ACCEPTED') && activeTab === 'review' && (
+                                            <div className="assignment-section">
+                                                <div style={{ display: 'flex', gap: '8px' }}>
+                                                    <select
+                                                        className="editor-dropdown"
+                                                        onChange={e => setSelectedEditor(e.target.value)}
+                                                        value={selectedEditor}
+                                                    >
+                                                        <option value="">-- Select Editor --</option>
+                                                        {editors.map(editor => (
+                                                            <option key={editor.id} value={editor.id}>
+                                                                {editor.name}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    <button
+                                                        className="btn btn-assign"
+                                                        onClick={() => handleAssign(submission.id)}
+                                                    >
+                                                        Assign
+                                                    </button>
+                                                </div>
+                                                <div className="quick-assign-buttons">
+                                                    <small>Quick assign:</small>
+                                                    {editors.map(editor => (
+                                                        <button
+                                                            key={editor.id}
+                                                            className="btn btn-quick-assign"
+                                                            onClick={() => handleAssign(submission.id, editor.id)}
+                                                            title={`Assign to ${editor.name}`}
+                                                        >
+                                                            {editor.name.split(' ').map(n => n[0]).join('')}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Final Status Message for assigned/declined/used */}
+                                        {(['assigned', 'ASSIGNED', 'declined', 'DECLINED', 'used', 'USED'].includes(submission.status)) && (
+                                            <div className="final-status-message">
+                                                <p>✓ This video has been processed.</p>
+                                                {(['assigned', 'ASSIGNED'].includes(submission.status) && submission.assigned_editor_id) && (
+                                                    <p>
+                                                        <small>
+                                                            Assigned to: {editors.find(e => e.id === submission.assigned_editor_id)?.name || 'Unknown Editor'}
+                                                        </small>
+                                                    </p>
+                                                )}
+                                                {(['used', 'USED'].includes(submission.status)) && (
+                                                    <p>
+                                                        <small style={{ color: '#28a745', fontWeight: '600' }}>
+                                                            🎬 This video has been completed and used in production
+                                                        </small>
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
                 </div>
             </main>
             <aside className="dashboard-sidebar">
