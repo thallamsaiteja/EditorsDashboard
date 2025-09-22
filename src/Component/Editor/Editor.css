@@ -1,0 +1,238 @@
+/* --- Editor Dashboard Styles (Light Theme) --- */
+:root {
+  /* UPDATED: Light Theme Color Palette */
+  --bg-primary: #f1f5f9;      /* A light, slightly cool gray background */
+  --bg-secondary: #ffffff;    /* Pure white for cards and sidebars */
+  --border-color: #e2e8f0;    /* A soft border color */
+  --text-primary: #1e293b;     /* A dark slate for primary text */
+  --text-secondary: #64748b;   /* A softer gray for secondary text */
+  --accent-primary: #38bdf8;   /* Sky blue accent (works well on light bg) */
+  --accent-secondary: #6366f1; /* Indigo accent (works well on light bg) */
+}
+
+.editor-dashboard-layout {
+  display: flex;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* --- Main Content --- */
+.editor-dashboard-main {
+  flex-grow: 1;
+  padding: 2rem;
+}
+.editor-dashboard-header {
+  margin-bottom: 2rem;
+}
+.editor-dashboard-header h1 {
+  font-size: 2.5rem;
+  margin: 0 0 0.5rem 0;
+}
+.editor-dashboard-header p {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* --- Tabs --- */
+.editor-tabs {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 2rem;
+}
+.tab-button {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s ease;
+}
+.tab-button:hover {
+  color: var(--text-primary);
+}
+.tab-button.active {
+  color: var(--accent-secondary); /* Changed to indigo for better contrast */
+  border-bottom-color: var(--accent-secondary);
+}
+
+/* --- Task Grid --- */
+.task-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+.task-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05); /* Softer shadow for light theme */
+}
+.task-card.status--completed {
+  opacity: 0.8;
+  background-color: #f8fafc; /* Slightly off-white for completed */
+}
+.task-card__preview {
+  height: 180px;
+  background-color: #f1f5f9; /* Light gray for placeholder */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.task-card__details {
+  padding: 1rem 1.25rem;
+  flex-grow: 1;
+}
+.task-card__title {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.25rem;
+}
+.task-card__meta {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin: 0.25rem 0;
+}
+.task-card__meta--completed a {
+    color: var(--accent-secondary);
+    font-weight: 500;
+}
+.task-card__actions {
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--border-color);
+}
+.btn {
+  padding: 0.6rem 1rem; border-radius: 0.5rem; font-weight: 600; text-decoration: none; transition: all 0.3s ease; border: none; cursor: pointer;
+}
+.btn--primary { background-color: var(--accent-primary); color: white; }
+.btn--primary:hover { background-color: #0ea5e9; }
+.btn--secondary { background-color: #e2e8f0; color: var(--text-primary); }
+.btn--secondary:hover { background-color: #cbd5e1; }
+.btn--submit {
+    background-color: var(--accent-secondary);
+    color: white;
+    width: 100%;
+    font-size: 1rem;
+}
+.btn--submit:hover {
+    background-color: #4f46e5;
+}
+.no-tasks-message {
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+}
+
+/* --- Sidebar --- */
+.editor-dashboard-sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  background-color: var(--bg-secondary);
+  border-left: 1px solid var(--border-color);
+  padding: 2rem;
+}
+.sidebar-profile {
+    text-align: center;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+.sidebar-profile__avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background-color: var(--accent-secondary);
+    color: white;
+    font-size: 2.5rem;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem auto;
+}
+.sidebar-profile__name {
+    margin: 0;
+    font-size: 1.25rem;
+}
+.sidebar-profile__email {
+    margin: 0.25rem 0 0 0;
+    color: var(--text-secondary);
+}
+.sidebar-title {
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 0 0 1rem 0;
+}
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 1rem;
+    padding: 0.75rem 0;
+}
+.stat-item + .stat-item {
+    border-top: 1px solid var(--border-color);
+}
+.stat-item__value {
+    font-weight: bold;
+    font-size: 1.25rem;
+}
+.sidebar-link {
+    display: block;
+    margin-top: 2rem;
+    text-align: center;
+    color: var(--accent-secondary);
+}
+
+/* --- Modal --- */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.modal-content {
+  background-color: var(--bg-secondary);
+  padding: 2rem;
+  border-radius: 0.75rem;
+  width: 100%;
+  max-width: 500px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+}
+.modal-content h2 {
+  margin-top: 0;
+}
+.modal-input {
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-color);
+  background-color: #f8fafc;
+  color: var(--text-primary);
+  font-size: 1rem;
+  margin: 1rem 0;
+  box-sizing: border-box;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}

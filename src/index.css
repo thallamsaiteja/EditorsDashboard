@@ -10,7 +10,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 
   /* It's also good practice to set a default background color here */
-  background-color: #0f172a; /* This matches your homepage background */
+  /* This matches your homepage background */
 }
 
 /* A common "box-sizing" reset. This helps make layout and sizing more predictable.

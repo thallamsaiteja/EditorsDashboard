@@ -1,10 +1,15 @@
 import React from 'react';
+import { Route, Routes, BrowserRouter } from 'react-router-dom';
+import './App.css';
+
+
 import Homepage from './Component/Home/homepage.jsx';
-import { Navigate, Route, Routes, BrowserRouter } from 'react-router-dom'
-import ManagerPage from './Component/Manager/ManagerPage'
-import Login from './Component/Auth/Login/Login'
-import Registration from './Component/Auth/Registration/Registration' 
-import './App.css'
+import ManagerPage from './Component/Manager/ManagerPage.jsx';
+import Login from './Component/Auth/Login/Login.jsx';
+import Registration from './Component/Auth/Registration/Registration.jsx'; 
+
+
+import EditorPage from './Component/Editor/Editor.jsx'; 
 
 
 function App() {
@@ -12,12 +17,15 @@ function App() {
     <BrowserRouter>
       <Routes>
         {/* Main route: Shows the Homepage */}
-        <Route path='/' element={<Homepage />} />      
-        {/* 2. Add the route for the manager dashboard */}
-        <Route path='/managerdashboard' element={<ManagerPage />} />
+        <Route path='/' element={<Homepage />} />
 
+        {/* Auth routes */}
         <Route path='/Login' element={<Login />} />
         <Route path='/Registration' element={<Registration />} />
+        
+        {/* Dashboard routes */}
+        <Route path='/managerdashboard' element={<ManagerPage />} />
+        <Route path='/editordashboard' element={<EditorPage />} />
 
       </Routes>
     </BrowserRouter>
