@@ -2,26 +2,23 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './Login.css';
 
-// 1. Import the necessary functions and schemas
+// 1. Import the necessary functions and schemas with the correct paths
 import { loginUserApi } from '../../../apiService.js';
 import { loginSchema } from '../../../validateSchema.js';
 import { jwtDecode } from 'jwt-decode';
 
 export default function Login() {
-    // State for the form inputs
     const [formData, setFormData] = useState({
-        username: "", // This field will accept a username or an email
+        username: "",
         password: "",
     });
     
-    // State for handling errors and UI toggles
     const [errors, setErrors] = useState({});
     const [apiError, setApiError] = useState("");
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     
     const navigate = useNavigate();
 
-    // A single handler to update the form state as the user types
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData({ ...formData, [name]: value });
@@ -31,11 +28,9 @@ export default function Login() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        // Clear previous errors on a new submission
         setErrors({});
         setApiError("");
 
-        // Perform frontend validation using our Zod schema
         const result = loginSchema.safeParse(formData);
 
         if (!result.success) {
@@ -44,41 +39,53 @@ export default function Login() {
                 fieldErrors[error.path[0]] = error.message;
             }
             setErrors(fieldErrors);
-            return; // Stop the function if validation fails
+            return;
         }
 
         try {
-            // Call the single, generic login API from our service file
             const data = await loginUserApi(result.data);
             
             if (data && data.access_token) {
                 const { access_token, expires_in } = data;
-
-                // --- THIS IS THE CHANGE ---
-                // We now store the access token in a cookie instead of localStorage.
-                // The cookie will expire automatically based on the 'expires_in' value from your backend.
-                document.cookie = `authToken=${access_token}; path=/; max-age=${expires_in}; SameSite=Lax;`;
                 
-                // Decode the token to check the user's role and status
                 const decodedToken = jwtDecode(access_token);
-                
-                if (decodedToken.is_verified === false && decodedToken.role !== 'ADMIN') {
-                    setApiError("Your account has not been approved by an administrator yet.");
-                    // We should also clear the cookie if login is denied
-                    document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                const { role, is_verified } = decodedToken;
+
+                if (role === 'NOT_SELECTED') {
+                    setApiError("Your account is pending approval from an administrator.");
                     return;
                 }
                 
-                // If verified, redirect to the correct dashboard
-                const userRole = decodedToken.role.toLowerCase();
-                navigate(`/${userRole}/dashboard`);
+                if (is_verified === false && role !== 'ADMIN') {
+                    setApiError("Your account has not been verified by an administrator yet.");
+                    return;
+                }
+                
+                // If all checks pass, store the token
+                document.cookie = `authToken=${access_token}; path=/; max-age=${expires_in}; SameSite=Lax;`;
+                
+                // --- THIS IS THE NEW, CORRECT NAVIGATION LOGIC ---
+                if (role === 'MANAGER') {
+                    // If the user is a Manager, send them directly to the Editors List page
+                    navigate('/manager/editorslist');
+                } else if (role === 'EDITOR') {
+                    // If the user is an Editor, send them to their dashboard
+                    navigate('/editor/dashboard');
+                } else if (role === 'ADMIN') {
+                    // We will handle the admin case later
+                    navigate('/admin/dashboard');
+                } else {
+                    // Fallback for any other case (like the 'USER' role)
+                    setApiError("Your role does not have an assigned dashboard. Please contact an administrator.");
+                    // Clear the token since they can't go anywhere
+                    document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                }
 
             } else {
                 setApiError("Login failed: No token was received from the server.");
             }
 
         } catch (err) {
-            // Display any error from the backend (e.g., "Invalid credentials")
             setApiError(err.message);
         }
     };
@@ -90,7 +97,6 @@ export default function Login() {
             
             <div className='login_card'>
                 <form onSubmit={handleSubmit} noValidate>
-                    {/* The form is now universal, with no role selectors */}
                     <input 
                         name="username"
                         value={formData.username} 
@@ -125,8 +131,8 @@ export default function Login() {
             </div>
             
             <div className="login_links">
-                <Link to="/forgot-password" className='login_links_text'>Forgot your password?</Link>
-                <Link to="/register" className='login_links_text'>Don't have an account? Register</Link>
+                <Link to="/forgot-password">Forgot your password?</Link>
+                <Link to="/register">Don't have an account? Register</Link>
             </div>
         </div>
     );
