@@ -1,0 +1,103 @@
+.list-card {
+    background-color: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    overflow-x: auto; /* Ensures the table is scrollable on small screens */
+}
+
+.list-title {
+    font-size: 22px;
+    color: #333;
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+.user-table {
+    width: 100%;
+    border-collapse: collapse; /* Removes space between table cells */
+}
+
+.user-table th, .user-table td {
+    padding: 15px;
+    text-align: left;
+    border-bottom: 1px solid #e0e0e0;
+    white-space: nowrap; /* Prevents text like emails from wrapping */
+}
+
+.user-table th {
+    font-size: 12px;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.user-table td {
+    font-size: 15px;
+    color: #444;
+}
+
+.user-table tbody tr:hover {
+    background-color: #fafafa; /* Highlight row on hover */
+}
+
+.actions-cell {
+    display: flex;
+    align-items: center;
+    gap: 15px; /* Space between items in the actions column */
+}
+
+.action-button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.action-button.accept {
+    background-color: #2196F3; /* Blue */
+    color: white;
+}
+.action-button.accept:hover {
+    background-color: #1976D2; /* Darker blue on hover */
+}
+
+.action-button.revoke {
+    background-color: #F44336; /* Red */
+    color: white;
+}
+.action-button.revoke:hover {
+    background-color: #D32F2F; /* Darker red on hover */
+}
+
+/* --- Status Badge Styles --- */
+.status-badge {
+    padding: 5px 12px;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+.status-badge.verified {
+    background-color: #E8F5E9; /* Light Green */
+    color: #4CAF50;
+}
+.status-badge.revoked {
+    background-color: #FFEBEE; /* Light Red */
+    color: #F44336;
+}
+
+/* --- Message Styles --- */
+.loading-message, .error-message-full, .info-message {
+    text-align: center;
+    padding: 20px;
+    margin-top: 20px;
+    border-radius: 8px;
+}
+.loading-message { font-size: 18px; color: #555; }
+.error-message-full { font-size: 16px; color: #D32F2F; background-color: #FFEBEE; }
+.info-message { font-size: 16px; color: #004085; background-color: #cce5ff; }
+
