@@ -58,6 +58,36 @@ export default function EditorPage() {
     return url && url.includes('embed.api.video');
   };
 
+  // Helper function to handle video download
+  const handleDownload = async (videoUrl, volunteerName, assignmentId) => {
+    if (!videoUrl) {
+      alert('No video URL available for download');
+      return;
+    }
+
+    try {
+      // For api.video URLs, we need to extract the actual video file URL
+      if (isApiVideoUrl(videoUrl)) {
+        // Open in new tab since api.video embed URLs can't be directly downloaded
+        window.open(videoUrl, '_blank');
+        return;
+      }
+
+      // For direct video URLs, trigger download
+      const link = document.createElement('a');
+      link.href = videoUrl;
+      link.download = `video_${volunteerName}_${assignmentId.slice(0, 8)}.mp4`;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Download error:', error);
+      // Fallback: open in new tab
+      window.open(videoUrl, '_blank');
+    }
+  };
+
   useEffect(() => {
     // Function to fetch initial data
     const fetchInitialData = async () => {
@@ -354,6 +384,45 @@ export default function EditorPage() {
                     pointerEvents: 'none'
                   }}>
                     {dateTag.text}
+                  </div>
+
+                  {/* Download Button */}
+                  <div style={{
+                    position: 'absolute',
+                    top: 8,
+                    left: 8,
+                    zIndex: 10
+                  }}>
+                    <button
+                      className="btn btn--download"
+                      onClick={() => handleDownload(assignment.video_url, assignment.volunteer_name, assignment.assignment_id)}
+                      title="Download video"
+                      style={{
+                        backgroundColor: '#007bff',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '32px',
+                        height: '32px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = '#0056b3';
+                        e.target.style.transform = 'scale(1.1)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = '#007bff';
+                        e.target.style.transform = 'scale(1)';
+                      }}
+                    >
+                      ⬇
+                    </button>
                   </div>
 
                   {/* Video Preview */}
