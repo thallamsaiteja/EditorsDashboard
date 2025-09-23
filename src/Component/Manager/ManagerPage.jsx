@@ -8,12 +8,14 @@ const API_BASE_URL = 'http://localhost:8000/api/v1/manager';
 const TAB_OPTIONS = [
     { key: 'review', label: 'Review', statuses: ['pending_review', 'PENDING_REVIEW', 'accepted', 'ACCEPTED'] },
     { key: 'assigned', label: 'Assigned', statuses: ['assigned', 'ASSIGNED'] },
+    { key: 'revisions', label: 'Revisions', assignmentStatuses: ['REVISION_NEEDED'] }, // New tab
     { key: 'declined', label: 'Declined', statuses: ['declined', 'DECLINED'] },
     { key: 'used', label: 'Used', statuses: ['used', 'USED'] },
 ];
 
 function ManagerPage() {
     const [submissions, setSubmissions] = useState([]);
+    const [assignments, setAssignments] = useState([]); // New state for assignments
     const [editors, setEditors] = useState([]);
     const [selectedEditor, setSelectedEditor] = useState('');
     const [connectionStatus, setConnectionStatus] = useState('Disconnected');
@@ -21,6 +23,12 @@ function ManagerPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState(TAB_OPTIONS[0].key);
     const [managerProfile, setManagerProfile] = useState(null);
+
+    // Updated state for revision modal - removed reassignEditorId
+    const [showReassignModal, setShowReassignModal] = useState(false);
+    const [selectedAssignment, setSelectedAssignment] = useState(null);
+    const [managerNotes, setManagerNotes] = useState(''); // This will be mandatory
+
     const eventSourceRef = useRef(null);
     const navigate = useNavigate();
 
@@ -155,6 +163,7 @@ function ManagerPage() {
                 const data = await response.json();
 
                 setSubmissions(data.submissions || []);
+                setAssignments(data.assignments || []); // Set assignments
                 setEditors(data.editors || []);
                 setManagerProfile(data.manager_profile || null);
                 setConnectionStatus('Connected');
@@ -226,6 +235,15 @@ function ManagerPage() {
                                     : sub
                             )
                         );
+                    } else if (updateData.event === 'assignment_update') {
+                        // Update assignments list
+                        setAssignments(prev =>
+                            prev.map(assignment =>
+                                assignment.assignment_id === updateData.assignment_id
+                                    ? { ...assignment, ...updateData }
+                                    : assignment
+                            )
+                        );
                     }
                 } catch (error) {
                     console.error("Error parsing manager SSE data:", error);
@@ -285,6 +303,88 @@ function ManagerPage() {
         }
     };
 
+    // Updated modal handler - no editor selection needed
+    const handleOpenReassignModal = (assignment) => {
+        setSelectedAssignment(assignment);
+        setManagerNotes(''); // Clear previous notes
+        setShowReassignModal(true);
+    };
+
+    const handleCloseReassignModal = () => {
+        setShowReassignModal(false);
+        setSelectedAssignment(null);
+        setManagerNotes('');
+    };
+
+    // Updated reassign handler - keep same editor, require manager notes
+    const handleReassignAssignment = async () => {
+        // Make manager notes mandatory
+        if (!managerNotes || !managerNotes.trim()) {
+            alert('Please provide instructions/reason for sending this back to the editor.');
+            return;
+        }
+
+        try {
+            const url = new URL(`${API_BASE_URL}/reassign-assignment`);
+            url.searchParams.append('assignment_id', selectedAssignment.assignment_id);
+            url.searchParams.append('new_editor_id', selectedAssignment.assigned_editor_id); // Keep same editor
+            url.searchParams.append('manager_notes', managerNotes.trim()); // Mandatory notes
+
+            const response = await authenticatedFetch(url.toString(), { method: 'POST' });
+            const result = await response.json();
+
+            console.log("Assignment sent back successfully:", result);
+
+            // Update assignments list - same editor, new status, with manager notes
+            setAssignments(prev =>
+                prev.map(assignment =>
+                    assignment.assignment_id === selectedAssignment.assignment_id
+                        ? {
+                            ...assignment,
+                            assignment_status: 'IN_PROGRESS', // Reset to in progress
+                            manager_notes: managerNotes.trim(),
+                            assigned_at: new Date().toISOString() // Update timestamp
+                        }
+                        : assignment
+                )
+            );
+
+            handleCloseReassignModal();
+
+        } catch (error) {
+            console.error("Error sending back assignment:", error);
+            alert(`Error: ${error.message}`);
+        }
+    };
+
+    const handleDeclineAssignment = async (assignment) => {
+        const reason = prompt("Please provide a reason for declining this assignment:");
+        if (!reason || !reason.trim()) {
+            alert("Please provide a reason for declining the assignment.");
+            return;
+        }
+
+        try {
+            const url = new URL(`${API_BASE_URL}/decline-assignment`);
+            url.searchParams.append('assignment_id', assignment.assignment_id);
+            url.searchParams.append('decline_reason', reason.trim());
+
+            const response = await authenticatedFetch(url.toString(), { method: 'POST' });
+            const result = await response.json();
+
+            console.log("Assignment declined successfully:", result);
+
+            // Remove from assignments list since it's now declined
+            setAssignments(prev =>
+                prev.filter(a => a.assignment_id !== assignment.assignment_id)
+            );
+
+        } catch (error) {
+            console.error("Error declining assignment:", error);
+            alert(`Error: ${error.message}`);
+        }
+    };
+
     const handleAccept = (submissionId) => updateBackendStatus(submissionId, 'accepted');
 
     const handleDecline = (submissionId) => {
@@ -334,6 +434,12 @@ function ManagerPage() {
             case 'USED':
             case 'used':
                 return 'Used';
+            case 'IN_PROGRESS':
+                return 'In Progress';
+            case 'COMPLETED':
+                return 'Completed';
+            case 'REVISION_NEEDED':
+                return 'Revision Needed';
             default:
                 return status;
         }
@@ -351,11 +457,21 @@ function ManagerPage() {
         }
     };
 
-    // Tab-filtered submissions
+    // Updated filtering logic for new revisions tab
     const tabConfig = TAB_OPTIONS.find(tab => tab.key === activeTab);
-    const filteredSubmissions = submissions.filter(sub =>
-        tabConfig.statuses.includes(sub.status)
-    );
+    let filteredData = [];
+
+    if (activeTab === 'revisions') {
+        // For revisions tab, filter assignments by status
+        filteredData = assignments.filter(assignment =>
+            tabConfig.assignmentStatuses && tabConfig.assignmentStatuses.includes(assignment.assignment_status)
+        );
+    } else {
+        // For other tabs, filter submissions by status
+        filteredData = submissions.filter(sub =>
+            tabConfig.statuses && tabConfig.statuses.includes(sub.status)
+        );
+    }
 
     if (isLoading) {
         return (
@@ -416,31 +532,39 @@ function ManagerPage() {
                         <p>{submissions.filter(s => ['ASSIGNED', 'assigned'].includes(s.status)).length}</p>
                     </div>
                     <div className="stat-card">
+                        <h3>Revisions</h3>
+                        <p>{assignments.filter(a => a.assignment_status === 'REVISION_NEEDED').length}</p>
+                    </div>
+                    <div className="stat-card">
                         <h3>Used Videos</h3>
                         <p>{submissions.filter(s => ['USED', 'used'].includes(s.status)).length}</p>
                     </div>
                 </div>
 
-                {/* Video Grid (Tab filtered) - NOW SCROLLABLE */}
+                {/* Video/Assignment Grid (Tab filtered) - NOW SCROLLABLE */}
                 <div className="video-grid-container">
                     <div className="video-grid">
-                        {filteredSubmissions.length === 0 ? (
+                        {filteredData.length === 0 ? (
                             <div className="no-submissions">
-                                <h3>No submissions found</h3>
-                                <p>Submissions will appear here automatically when volunteers submit videos.</p>
+                                <h3>No {activeTab === 'revisions' ? 'revision requests' : 'submissions'} found</h3>
+                                <p>{activeTab === 'revisions' ? 'Revision requests' : 'Submissions'} will appear here when available.</p>
                             </div>
                         ) : (
-                            filteredSubmissions.map((submission) => {
-                                const dateClassification = getDateClassification(submission.received_at);
+                            filteredData.map((item) => {
+                                // Determine if this is an assignment (revision tab) or submission
+                                const isAssignment = activeTab === 'revisions';
+                                const dateClassification = getDateClassification(isAssignment ? item.assigned_at : item.received_at);
                                 const dateTag = getDateTag(dateClassification);
 
                                 return (
-                                    <div key={submission.id} className={`video-card status-${getStatusClass(submission.status)}`}>
+                                    <div key={isAssignment ? item.assignment_id : item.id}
+                                        className={`video-card status-${getStatusClass(isAssignment ? item.assignment_status : item.status)}`}>
+
                                         <div className="video-preview">
-                                            {submission.video_url ? (
-                                                isApiVideoUrl(submission.video_url) ? (
+                                            {item.video_url ? (
+                                                isApiVideoUrl(item.video_url) ? (
                                                     <iframe
-                                                        src={submission.video_url}
+                                                        src={item.video_url}
                                                         width="100%"
                                                         height="100%"
                                                         frameBorder="0"
@@ -452,11 +576,11 @@ function ManagerPage() {
                                                             border: 'none',
                                                             borderRadius: '4px'
                                                         }}
-                                                        title={`Video by ${submission.volunteer_name}`}
+                                                        title={`Video by ${item.volunteer_name}`}
                                                     />
                                                 ) : (
                                                     <video controls className="video-player">
-                                                        <source src={submission.video_url} type="video/mp4" />
+                                                        <source src={item.video_url} type="video/mp4" />
                                                         Your browser does not support the video tag.
                                                     </video>
                                                 )
@@ -467,33 +591,98 @@ function ManagerPage() {
                                                 </div>
                                             )}
                                         </div>
+
                                         <div className="video-info">
-                                            <p><strong>Volunteer:</strong> {submission.volunteer_name}</p>
+                                            <p><strong>Volunteer:</strong> {item.volunteer_name}</p>
+
+                                            {isAssignment && (
+                                                <p><strong>Editor:</strong> {item.assigned_editor_name}</p>
+                                            )}
+
                                             <p><strong>Status:</strong>
-                                                <span className={`status-badge status-${getStatusClass(submission.status)}`}>
-                                                    {getStatusText(submission.status)}
+                                                <span className={`status-badge status-${getStatusClass(isAssignment ? item.assignment_status : item.status)}`}>
+                                                    {getStatusText(isAssignment ? item.assignment_status : item.status)}
                                                 </span>
                                             </p>
-                                            <p><strong>Received:</strong> {formatDateTimeWithClassification(submission.received_at)}</p>
-                                            <p><strong>ID:</strong> <code>{submission.id.slice(0, 8)}...</code></p>
-                                            {submission.decline_reason && (
-                                                <p><strong>Decline Reason:</strong> <em>{submission.decline_reason}</em></p>
+
+                                            <p><strong>{isAssignment ? 'Assigned' : 'Received'}:</strong>
+                                                {formatDateTimeWithClassification(isAssignment ? item.assigned_at : item.received_at)}
+                                            </p>
+
+                                            <p><strong>ID:</strong> <code>{(isAssignment ? item.assignment_id : item.id).slice(0, 8)}...</code></p>
+
+                                            {/* Show revision notes for revision requests */}
+                                            {isAssignment && item.revision_notes && (
+                                                <div style={{
+                                                    backgroundColor: '#f8d7da',
+                                                    padding: '10px',
+                                                    borderRadius: '4px',
+                                                    marginTop: '10px',
+                                                    border: '1px solid #f5c6cb'
+                                                }}>
+                                                    <p><strong>Editor's Revision Reason:</strong></p>
+                                                    <p style={{ color: '#721c24', fontStyle: 'italic', margin: '5px 0 0 0' }}>
+                                                        "{item.revision_notes}"
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {/* Show manager notes if any */}
+                                            {isAssignment && item.manager_notes && (
+                                                <div style={{
+                                                    backgroundColor: '#d4edda',
+                                                    padding: '10px',
+                                                    borderRadius: '4px',
+                                                    marginTop: '10px',
+                                                    border: '1px solid #c3e6cb'
+                                                }}>
+                                                    <p><strong>Previous Manager Instructions:</strong></p>
+                                                    <p style={{ color: '#155724', fontStyle: 'italic', margin: '5px 0 0 0' }}>
+                                                        "{item.manager_notes}"
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {!isAssignment && item.decline_reason && (
+                                                <p><strong>Decline Reason:</strong> <em>{item.decline_reason}</em></p>
                                             )}
                                         </div>
 
-                                        {/* Action Section: Only show on pending_review and accepted tabs */}
-                                        {(['pending_review', 'PENDING_REVIEW'].includes(submission.status) && activeTab === 'review') && (
+                                        {/* Action Section for different tabs */}
+                                        {activeTab === 'revisions' && (
                                             <div className="action-buttons">
-                                                <button className="btn btn-accept" onClick={() => handleAccept(submission.id)}>
-                                                    ✓ Accept
+                                                <button
+                                                    className="btn btn-assign"
+                                                    onClick={() => handleOpenReassignModal(item)}
+                                                    style={{
+                                                        marginRight: '8px',
+                                                        backgroundColor: '#ffc107',
+                                                        color: '#212529'
+                                                    }}
+                                                >
+                                                    📝 Send Back
                                                 </button>
-                                                <button className="btn btn-decline" onClick={() => handleDecline(submission.id)}>
+                                                <button
+                                                    className="btn btn-decline"
+                                                    onClick={() => handleDeclineAssignment(item)}
+                                                >
                                                     ✗ Decline
                                                 </button>
                                             </div>
                                         )}
 
-                                        {(submission.status === 'accepted' || submission.status === 'ACCEPTED') && activeTab === 'review' && (
+                                        {(['pending_review', 'PENDING_REVIEW'].includes(item.status) && activeTab === 'review') && (
+                                            <div className="action-buttons">
+                                                <button className="btn btn-accept" onClick={() => handleAccept(item.id)}>
+                                                    ✓ Accept
+                                                </button>
+                                                <button className="btn btn-decline" onClick={() => handleDecline(item.id)}>
+                                                    ✗ Decline
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {(item.status === 'accepted' || item.status === 'ACCEPTED') && activeTab === 'review' && (
                                             <div className="assignment-section">
                                                 <div style={{ display: 'flex', gap: '8px' }}>
                                                     <select
@@ -510,7 +699,7 @@ function ManagerPage() {
                                                     </select>
                                                     <button
                                                         className="btn btn-assign"
-                                                        onClick={() => handleAssign(submission.id)}
+                                                        onClick={() => handleAssign(item.id)}
                                                     >
                                                         Assign
                                                     </button>
@@ -521,7 +710,7 @@ function ManagerPage() {
                                                         <button
                                                             key={editor.id}
                                                             className="btn btn-quick-assign"
-                                                            onClick={() => handleAssign(submission.id, editor.id)}
+                                                            onClick={() => handleAssign(item.id, editor.id)}
                                                             title={`Assign to ${editor.name}`}
                                                         >
                                                             {editor.name.split(' ').map(n => n[0]).join('')}
@@ -532,17 +721,17 @@ function ManagerPage() {
                                         )}
 
                                         {/* Final Status Message for assigned/declined/used */}
-                                        {(['assigned', 'ASSIGNED', 'declined', 'DECLINED', 'used', 'USED'].includes(submission.status)) && (
+                                        {(['assigned', 'ASSIGNED', 'declined', 'DECLINED', 'used', 'USED'].includes(item.status)) && activeTab !== 'revisions' && (
                                             <div className="final-status-message">
                                                 <p>✓ This video has been processed.</p>
-                                                {(['assigned', 'ASSIGNED'].includes(submission.status) && submission.assigned_editor_id) && (
+                                                {(['assigned', 'ASSIGNED'].includes(item.status) && item.assigned_editor_id) && (
                                                     <p>
                                                         <small>
-                                                            Assigned to: {editors.find(e => e.id === submission.assigned_editor_id)?.name || 'Unknown Editor'}
+                                                            Assigned to: {editors.find(e => e.id === item.assigned_editor_id)?.name || 'Unknown Editor'}
                                                         </small>
                                                     </p>
                                                 )}
-                                                {(['used', 'USED'].includes(submission.status)) && (
+                                                {(['used', 'USED'].includes(item.status)) && (
                                                     <p>
                                                         <small style={{ color: '#28a745', fontWeight: '600' }}>
                                                             🎬 This video has been completed and used in production
@@ -561,7 +750,7 @@ function ManagerPage() {
 
             <aside className="dashboard-sidebar">
                 <div className="sidebar-content">
-                    {/* ✅ NEW: Manager Profile Card */}
+                    {/* ✅ Manager Profile Card */}
                     <div className="sidebar-profile">
                         <div className="sidebar-profile__avatar">
                             {managerProfile?.full_name?.charAt(0) || 'M'}
@@ -620,6 +809,10 @@ function ManagerPage() {
                                 <span className="stat-value">{submissions.filter(s => s.status === 'PENDING_REVIEW' || s.status === 'pending_review').length}</span>
                             </div>
                             <div className="quick-stat">
+                                <span className="stat-label">Revisions:</span>
+                                <span className="stat-value">{assignments.filter(a => a.assignment_status === 'REVISION_NEEDED').length}</span>
+                            </div>
+                            <div className="quick-stat">
                                 <span className="stat-label">Used Videos:</span>
                                 <span className="stat-value">{submissions.filter(s => s.status === 'USED' || s.status === 'used').length}</span>
                             </div>
@@ -633,6 +826,81 @@ function ManagerPage() {
 
                 <Link to="/" className="sidebar-link">Back to Home</Link>
             </aside>
+
+            {/* Updated Send Back Modal */}
+            {showReassignModal && (
+                <div className="modal-backdrop">
+                    <div className="modal-content">
+                        <h2>Send Back to Editor</h2>
+                        <div className="assignment-context" style={{
+                            backgroundColor: '#fff3cd',
+                            padding: '15px',
+                            borderRadius: '8px',
+                            marginBottom: '20px',
+                            border: '1px solid #ffeaa7'
+                        }}>
+                            <p><strong>Video from:</strong> {selectedAssignment?.volunteer_name}</p>
+                            <p><strong>Editor:</strong> {selectedAssignment?.assigned_editor_name}</p>
+                            <p><strong>Originally Assigned:</strong> {formatDateTime(selectedAssignment?.assigned_at)}</p>
+                            {selectedAssignment?.revision_notes && (
+                                <div style={{
+                                    backgroundColor: '#f8d7da',
+                                    padding: '10px',
+                                    borderRadius: '4px',
+                                    marginTop: '10px',
+                                    border: '1px solid #f5c6cb'
+                                }}>
+                                    <p><strong>Editor's Revision Reason:</strong></p>
+                                    <p style={{ color: '#721c24', fontStyle: 'italic', margin: '5px 0 0 0' }}>
+                                        "{selectedAssignment.revision_notes}"
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="modal-form">
+                            <label htmlFor="manager-notes" style={{ color: '#d9534f', fontWeight: 'bold' }}>
+                                Manager Instructions/Reason (Required) *
+                            </label>
+                            <textarea
+                                id="manager-notes"
+                                className="modal-textarea"
+                                placeholder="Explain why you're sending this back to the editor and what needs to be done..."
+                                value={managerNotes}
+                                onChange={(e) => setManagerNotes(e.target.value)}
+                                rows={4}
+                                required
+                                style={{
+                                    borderColor: managerNotes.trim() ? '#28a745' : '#dc3545',
+                                    borderWidth: '2px'
+                                }}
+                            />
+                            <small style={{ color: '#6c757d', marginTop: '5px', display: 'block' }}>
+                                This message will be sent to <strong>{selectedAssignment?.assigned_editor_name}</strong>
+                                explaining why the work needs to be redone.
+                            </small>
+                        </div>
+
+                        <div className="modal-actions">
+                            <button className="btn btn--secondary" onClick={handleCloseReassignModal}>
+                                Cancel
+                            </button>
+                            <button
+                                className="btn btn-assign"
+                                onClick={handleReassignAssignment}
+                                disabled={!managerNotes.trim()}
+                                style={{
+                                    backgroundColor: managerNotes.trim() ? '#ffc107' : '#6c757d',
+                                    color: managerNotes.trim() ? '#212529' : '#fff',
+                                    cursor: managerNotes.trim() ? 'pointer' : 'not-allowed'
+                                }}
+                            >
+                                Send Back to Editor
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
