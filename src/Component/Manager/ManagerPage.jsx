@@ -496,6 +496,14 @@ function ManagerPage() {
                         <span className={`status-indicator ${connectionStatus.toLowerCase().replace(' ', '-')}`}>
                             ● {connectionStatus}
                         </span>
+                        <button
+                            type="button"
+                            className="editots_list_display_button"
+                            onClick={() => navigate('/managerdashboard/EditorsList')} // go to list [web:98]
+                            title="Open Editors List"
+                        >
+                            Editors List
+                        </button>
                         {lastUpdate && (
                             <span className="last-update">
                                 Last update: {lastUpdate}
