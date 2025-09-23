@@ -139,36 +139,6 @@ export default function EditorPage() {
     return url && url.includes('embed.api.video');
   };
 
-  // Helper function to handle video download
-  const handleDownload = async (videoUrl, volunteerName, assignmentId) => {
-    if (!videoUrl) {
-      alert('No video URL available for download');
-      return;
-    }
-
-    try {
-      // For api.video URLs, we need to extract the actual video file URL
-      if (isApiVideoUrl(videoUrl)) {
-        // Open in new tab since api.video embed URLs can't be directly downloaded
-        window.open(videoUrl, '_blank');
-        return;
-      }
-
-      // For direct video URLs, trigger download
-      const link = document.createElement('a');
-      link.href = videoUrl;
-      link.download = `video_${volunteerName}_${assignmentId.slice(0, 8)}.mp4`;
-      link.target = '_blank';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (error) {
-      console.error('Download error:', error);
-      // Fallback: open in new tab
-      window.open(videoUrl, '_blank');
-    }
-  };
-
   useEffect(() => {
     // Check authentication first
     const token = getAuthToken();
@@ -516,7 +486,7 @@ export default function EditorPage() {
           </button>
         </div>
 
-        {/* Task Grid Container - NOW SCROLLABLE */}
+        {/* Task Grid Container - IMPROVED SCROLLING AND SPACING */}
         <div className="task-grid-container">
           <div className="task-grid">
             {filteredAssignments.length === 0 ? (
@@ -546,12 +516,19 @@ export default function EditorPage() {
                               width: '100%',
                               height: '100%',
                               border: 'none',
-                              borderRadius: '4px'
+                              borderRadius: '0'
                             }}
                             title={`Video by ${assignment.volunteer_name}`}
                           />
                         ) : (
-                          <video controls style={{ width: '100%', height: '100%' }}>
+                          <video 
+                            controls 
+                            style={{ 
+                              width: '100%', 
+                              height: '100%',
+                              borderRadius: '0'
+                            }}
+                          >
                             <source src={assignment.video_url} type="video/mp4" />
                             Your browser does not support the video tag.
                           </video>
@@ -567,105 +544,89 @@ export default function EditorPage() {
                     {/* Assignment Details */}
                     <div className="task-card__details">
                       <h3 className="task-card__title">Video Assignment</h3>
-                      <p className="task-card__meta"><strong>From:</strong> {assignment.volunteer_name}</p>
-                      <p className="task-card__meta"><strong>Assigned by:</strong> {assignment.manager_name || 'Unknown Manager'}</p>
-                      <p className="task-card__meta"><strong>Assigned:</strong> {formatDateTimeWithClassification(assignment.assigned_at)}</p>
-                      <p className="task-card__meta"><strong>Status:</strong>
-                        <span className={`status-badge status-${assignment.assignment_status.toLowerCase().replace('_', '-')}`}>
-                          {assignment.assignment_status.replace('_', ' ')}
-                        </span>
-                      </p>
+                      
+                      <div className="task-card__info-grid">
+                        <div className="info-item">
+                          <span className="info-label">From:</span>
+                          <span className="info-value">{assignment.volunteer_name}</span>
+                        </div>
+                        
+                        <div className="info-item">
+                          <span className="info-label">Assigned by:</span>
+                          <span className="info-value">{assignment.manager_name || 'Unknown Manager'}</span>
+                        </div>
+                        
+                        <div className="info-item">
+                          <span className="info-label">Assigned:</span>
+                          <span className="info-value">{formatDateTimeWithClassification(assignment.assigned_at)}</span>
+                        </div>
+                        
+                        <div className="info-item">
+                          <span className="info-label">Status:</span>
+                          <span className={`status-badge status-${assignment.assignment_status.toLowerCase().replace('_', '-')}`}>
+                            {assignment.assignment_status.replace('_', ' ')}
+                          </span>
+                        </div>
 
-                      {/* Download Button */}
-                      <div className="task-card__download">
-                        <button
-                          className="btn btn--download"
-                          onClick={() => handleDownload(assignment.video_url, assignment.volunteer_name, assignment.assignment_id)}
-                          title="Download original video"
-                          style={{
-                            backgroundColor: '#007bff',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '6px',
-                            padding: '8px 16px',
-                            fontSize: '13px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            transition: 'all 0.2s',
-                            marginTop: '8px'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.target.style.backgroundColor = '#0056b3';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.target.style.backgroundColor = '#007bff';
-                          }}
-                        >
-                          ⬇ Download Video
-                        </button>
+                        {assignment.completed_at && (
+                          <div className="info-item">
+                            <span className="info-label">Completed:</span>
+                            <span className="info-value">{formatDateTime(assignment.completed_at)}</span>
+                          </div>
+                        )}
+
+                        {assignment.completed_video_url && (
+                          <div className="info-item completed-video">
+                            <span className="info-label">Final Video:</span>
+                            <a href={assignment.completed_video_url} target="_blank" rel="noopener noreferrer" className="video-link">
+                              View Final Video
+                            </a>
+                          </div>
+                        )}
                       </div>
 
-                      {assignment.completed_at && (
-                        <p className="task-card__meta"><strong>Completed:</strong> {formatDateTime(assignment.completed_at)}</p>
-                      )}
+                      {/* Notes Section */}
+                      <div className="task-card__notes-section">
+                        {assignment.manager_notes && (
+                          <div className="note-item">
+                            <span className="note-label">Manager Notes:</span>
+                            <p className="note-content">{assignment.manager_notes}</p>
+                          </div>
+                        )}
 
-                      {assignment.completed_video_url && (
-                        <p className="task-card__meta--completed">
-                          <strong>Final Video:</strong> <a href={assignment.completed_video_url} target="_blank" rel="noopener noreferrer">View</a>
-                        </p>
-                      )}
+                        {assignment.editor_notes && (
+                          <div className="note-item">
+                            <span className="note-label">My Notes:</span>
+                            <p className="note-content">{assignment.editor_notes}</p>
+                          </div>
+                        )}
 
-                      {assignment.manager_notes && (
-                        <p className="task-card__notes"><strong>Manager Notes:</strong> <em>{assignment.manager_notes}</em></p>
-                      )}
-
-                      {assignment.editor_notes && (
-                        <p className="task-card__notes"><strong>My Notes:</strong> <em>{assignment.editor_notes}</em></p>
-                      )}
-
-                      {assignment.revision_notes && (
-                        <p className="task-card__notes">
-                          <strong>Revision Notes:</strong> <em>{assignment.revision_notes}</em>
-                        </p>
-                      )}
+                        {assignment.revision_notes && (
+                          <div className="note-item revision-notes">
+                            <span className="note-label">Revision Notes:</span>
+                            <p className="note-content">{assignment.revision_notes}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Action Buttons - Updated to show Complete button in both IN_PROGRESS and REVISION_NEEDED */}
+                    {/* Action Buttons - UPDATED FOR REVISION NEEDED */}
                     {(assignment.assignment_status === 'IN_PROGRESS' || assignment.assignment_status === 'REVISION_NEEDED') && (
-                      <div className="task-card__actions" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                      <div className="task-card__actions">
                         <button
                           className="btn btn--primary"
                           onClick={() => handleOpenModal(assignment)}
-                          style={{ flex: '1', minWidth: '120px' }}
                         >
-                          Complete Assignment
+                          {assignment.assignment_status === 'REVISION_NEEDED' 
+                            ? 'Submit Revised Version' 
+                            : 'Complete Assignment'
+                          }
                         </button>
 
-                        {/* Only show Request Revision button for IN_PROGRESS assignments */}
                         {assignment.assignment_status === 'IN_PROGRESS' && (
                           <button
                             className="btn btn--warning"
                             onClick={() => handleOpenRevisionModal(assignment)}
-                            style={{
-                              backgroundColor: '#ffc107',
-                              color: '#212529',
-                              border: 'none',
-                              borderRadius: '6px',
-                              padding: '8px 16px',
-                              fontSize: '14px',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s',
-                              flex: '1',
-                              minWidth: '120px'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.target.style.backgroundColor = '#e0a800';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.target.style.backgroundColor = '#ffc107';
-                            }}
                           >
                             Request Revision
                           </button>
@@ -724,18 +685,17 @@ export default function EditorPage() {
         />
       </aside>
 
-      {/* Completion Modal */}
+      {/* Completion Modal - UPDATED TITLE */}
       {showModal && (
         <div className="modal-backdrop">
           <div className="modal-content">
-            <h2>Complete Assignment</h2>
-            <div className="assignment-context" style={{
-              backgroundColor: '#f8f9fa',
-              padding: '15px',
-              borderRadius: '8px',
-              marginBottom: '20px',
-              border: '1px solid #e9ecef'
-            }}>
+            <h2>
+              {selectedAssignment?.assignment_status === 'REVISION_NEEDED' 
+                ? 'Submit Revised Assignment' 
+                : 'Complete Assignment'
+              }
+            </h2>
+            <div className="assignment-context">
               <p><strong>Video from:</strong> {selectedAssignment?.volunteer_name}</p>
               <p><strong>Assigned by:</strong> {selectedAssignment?.manager_name || 'Unknown Manager'}</p>
               <p><strong>Assigned on:</strong> {formatDateTime(selectedAssignment?.assigned_at)}</p>
@@ -753,7 +713,12 @@ export default function EditorPage() {
             </div>
 
             <div className="modal-form">
-              <label htmlFor="completed-url">Completed Video URL *</label>
+              <label htmlFor="completed-url">
+                {selectedAssignment?.assignment_status === 'REVISION_NEEDED' 
+                  ? 'Revised Video URL *' 
+                  : 'Completed Video URL *'
+                }
+              </label>
               <input
                 id="completed-url"
                 type="text"
@@ -768,7 +733,10 @@ export default function EditorPage() {
               <textarea
                 id="editor-notes"
                 className="modal-textarea"
-                placeholder="Add any notes about the editing process..."
+                placeholder={selectedAssignment?.assignment_status === 'REVISION_NEEDED' 
+                  ? 'Add notes about the revisions made...' 
+                  : 'Add any notes about the editing process...'
+                }
                 value={editorNotes}
                 onChange={(e) => setEditorNotes(e.target.value)}
                 rows={4}
@@ -780,7 +748,10 @@ export default function EditorPage() {
                 Cancel
               </button>
               <button className="btn btn--primary" onClick={handleCompleteAssignment}>
-                Complete Assignment
+                {selectedAssignment?.assignment_status === 'REVISION_NEEDED' 
+                  ? 'Submit Revised Version' 
+                  : 'Complete Assignment'
+                }
               </button>
             </div>
           </div>
@@ -792,13 +763,7 @@ export default function EditorPage() {
         <div className="modal-backdrop">
           <div className="modal-content">
             <h2>Request Revision</h2>
-            <div className="assignment-context" style={{
-              backgroundColor: '#fff3cd',
-              padding: '15px',
-              borderRadius: '8px',
-              marginBottom: '20px',
-              border: '1px solid #ffeaa7'
-            }}>
+            <div className="assignment-context revision-context">
               <p><strong>Video from:</strong> {selectedAssignment?.volunteer_name}</p>
               <p><strong>Assigned by:</strong> {selectedAssignment?.manager_name || 'Unknown Manager'}</p>
               <p><strong>Assigned on:</strong> {formatDateTime(selectedAssignment?.assigned_at)}</p>
@@ -824,14 +789,7 @@ export default function EditorPage() {
               <button className="btn btn--secondary" onClick={handleCloseRevisionModal}>
                 Cancel
               </button>
-              <button
-                className="btn btn--warning"
-                onClick={handleRequestRevision}
-                style={{
-                  backgroundColor: '#ffc107',
-                  color: '#212529'
-                }}
-              >
+              <button className="btn btn--warning" onClick={handleRequestRevision}>
                 Request Revision
               </button>
             </div>

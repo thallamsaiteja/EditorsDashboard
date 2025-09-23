@@ -446,13 +446,12 @@ export default function AdminDashboard() {
                     {/* ✅ NEW: Admin Profile Card */}
                     {adminProfile && (
                         <div className="admin-profile-card">
-                            <div className="admin-profile-avatar">
+                            {/* <div className="admin-profile-avatar">
                                 {adminProfile.full_name?.charAt(0) || 'A'}
-                            </div>
+                            </div> */}
                             <div className="admin-profile-info">
-                                <h3>{adminProfile.full_name || 'Administrator'}</h3>
-                                <p>{adminProfile.email}</p>
-                                <span className="admin-badge">{adminProfile.role} • {adminProfile.is_verified ? 'Verified' : 'Pending'}</span>
+                                <h3>{adminProfile.full_name || 'Administrator'} <p>{adminProfile.email}</p></h3>
+                                <span className="admin-badge">{adminProfile.role} </span>
                             </div>
                         </div>
                     )}
@@ -526,7 +525,7 @@ export default function AdminDashboard() {
 
             {/* Assignment Overview */}
             <section className="dashboard-section">
-                <div className="section-header">
+                <div className="section-headerAdmin">
                     <h2 className="section-title">Assignment Overview</h2>
                     <div className="assignment-tabs">
                         <button
@@ -597,14 +596,14 @@ export default function AdminDashboard() {
 
             {/* Team Management */}
             <section className="dashboard-section">
-                <div className="section-header">
+                <div className="section-headerAdmin">
                     <h2 className="section-title">Manage Team</h2>
-                    <button
+                    {/* <button
                         className="btn btn--primary"
                         onClick={() => setShowAddUserModal(true)}
                     >
                         Add New User
-                    </button>
+                    </button> */}
                 </div>
                 <div className="table-container scrollable-table">
                     <table className="data-table">
