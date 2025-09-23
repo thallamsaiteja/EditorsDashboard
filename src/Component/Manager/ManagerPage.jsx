@@ -11,7 +11,7 @@ const TAB_OPTIONS = [
     { key: 'assigned', label: 'Assigned', statuses: ['assigned', 'ASSIGNED'] },
     { key: 'revisions', label: 'Revisions', assignmentStatuses: ['REVISION_NEEDED'] }, // New tab
     { key: 'declined', label: 'Declined', statuses: ['declined', 'DECLINED'] },
-    { key: 'used', label: 'Used', statuses: ['used', 'USED'] },
+    { key: 'used', label: 'Completed', statuses: ['used', 'USED'] },
 ];
 
 function ManagerPage() {

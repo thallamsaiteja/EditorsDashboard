@@ -714,7 +714,7 @@ export default function EditorPage() {
           </div>
         </div>
 
-        <Link to="/" className="sidebar-link">Back to Home</Link>
+        {/* <Link to="/" className="sidebar-link">Back to Home</Link> */}
 
         <LogoutButton
           className="sidebar-link"
