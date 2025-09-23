@@ -195,8 +195,10 @@
   display: flex;
   flex-direction: column;
   height: fit-content;
-  min-height: 480px; /* Increased minimum height for notes */
-  max-height: none; /* Removed max-height restriction */
+  min-height: 480px;
+  /* Increased minimum height for notes */
+  max-height: none;
+  /* Removed max-height restriction */
 }
 
 .task-card:hover {
@@ -220,9 +222,12 @@
 }
 
 @keyframes pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.7;
   }
@@ -231,7 +236,7 @@
 /* Video Preview - COMPACT */
 .task-card__preview {
   width: 100%;
-  height: 160px;
+  height: 220px;
   background-color: #1f2937;
   position: relative;
   overflow: hidden;
@@ -269,7 +274,7 @@
 
 /* Task Details - EXPANDED FOR NOTES */
 .task-card__details {
-  padding: 20px;
+  padding: 10px;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -288,7 +293,7 @@
 .task-card__info-grid {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 5px;
   margin-bottom: 18px;
 }
 
@@ -342,10 +347,11 @@
 
 /* Notes Section - ENHANCED VISIBILITY AND SPACING */
 .task-card__notes-section {
-  margin-top: 16px;
+  margin-top: 1px;
   border-top: 2px solid #f1f5f9;
   padding-top: 16px;
-  flex-shrink: 0; /* Prevent notes from being compressed */
+  flex-shrink: 0;
+  /* Prevent notes from being compressed */
 }
 
 .note-item {
@@ -770,7 +776,7 @@
   .task-grid {
     grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   }
-  
+
   .task-card {
     min-height: 450px;
   }
@@ -784,23 +790,23 @@
     height: auto;
     overflow: visible;
   }
-  
+
   .editor-dashboard-sidebar {
     order: -1;
   }
-  
+
   .editor-dashboard-main {
     overflow: visible;
   }
-  
+
   .task-grid-container {
     overflow: visible;
   }
-  
+
   .task-card {
     min-height: auto;
   }
-  
+
   .task-grid {
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 16px;
@@ -811,55 +817,55 @@
   .editor-dashboard-layout {
     padding: 12px;
   }
-  
+
   .editor-dashboard-header {
     padding: 18px 22px;
   }
-  
+
   .editor-dashboard-header h1 {
     font-size: 22px;
   }
-  
+
   .task-grid {
     grid-template-columns: 1fr;
     gap: 14px;
   }
-  
+
   .task-card__details {
     padding: 18px;
   }
-  
+
   .task-card__actions {
     padding: 0 18px 16px 18px;
     flex-direction: column;
   }
-  
+
   .btn {
     min-width: auto;
   }
-  
+
   .sidebar-profile {
     padding: 20px 18px;
   }
-  
+
   .sidebar-stats {
     padding: 18px;
   }
-  
+
   .modal-content {
     padding: 24px;
     margin: 16px;
   }
-  
+
   .editor-tabs {
     flex-direction: column;
     gap: 2px;
   }
-  
+
   .tab-button {
     padding: 14px 18px;
   }
-  
+
   .modal-actions {
     flex-direction: column;
   }
@@ -869,39 +875,44 @@
   .editor-dashboard-layout {
     padding: 8px;
   }
-  
+
   .task-card__preview {
     height: 140px;
   }
-  
+
   .task-card__details {
     padding: 16px;
   }
-  
+
   .task-card__actions {
     padding: 0 16px 14px 16px;
   }
-  
+
   .btn {
     width: 100%;
     justify-content: center;
     padding: 12px 18px;
   }
-  
+
   .info-item {
     flex-direction: column;
     align-items: flex-start;
     gap: 3px;
     padding: 4px 0;
   }
-  
+
   .info-value {
     text-align: left;
   }
 }
+
 /* reuse existing .sidebar-link base; only override color tokens */
 .sidebar-link.logout-variant {
-  background: #e03131; /* red */
+  background: #e03131;
+  /* red */
   color: #fff;
 }
-.sidebar-link.logout-variant:hover { background: #c92a2a; }
+
+.sidebar-link.logout-variant:hover {
+  background: #c92a2a;
+}
