@@ -18,6 +18,11 @@ export default function EditorPage() {
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [completedVideoUrl, setCompletedVideoUrl] = useState('');
   const [editorNotes, setEditorNotes] = useState('');
+
+  // New state for revision modal
+  const [showRevisionModal, setShowRevisionModal] = useState(false);
+  const [revisionNotes, setRevisionNotes] = useState('');
+
   const eventSourceRef = useRef(null);
   const navigate = useNavigate();
 
@@ -248,6 +253,7 @@ export default function EditorPage() {
                   completed_video_url: null,
                   editor_notes: null,
                   manager_notes: null,
+                  revision_notes: null,
                   received_at: null
                 };
                 const updatedAssignments = [newAssignment, ...prevAssignments];
@@ -266,7 +272,8 @@ export default function EditorPage() {
                     assignment_status: updateData.status,
                     completed_video_url: updateData.completed_video_url,
                     completed_at: updateData.completed_at,
-                    editor_notes: updateData.editor_notes
+                    editor_notes: updateData.editor_notes,
+                    revision_notes: updateData.revision_notes
                   }
                   : assignment
               );
@@ -324,12 +331,26 @@ export default function EditorPage() {
     setShowModal(true);
   };
 
-  // Handle closing modal
+  // Handle closing completion modal
   const handleCloseModal = () => {
     setShowModal(false);
     setSelectedAssignment(null);
     setCompletedVideoUrl('');
     setEditorNotes('');
+  };
+
+  // Handle opening revision modal
+  const handleOpenRevisionModal = (assignment) => {
+    setSelectedAssignment(assignment);
+    setRevisionNotes('');
+    setShowRevisionModal(true);
+  };
+
+  // Handle closing revision modal
+  const handleCloseRevisionModal = () => {
+    setShowRevisionModal(false);
+    setSelectedAssignment(null);
+    setRevisionNotes('');
   };
 
   // Handle assignment completion
@@ -374,6 +395,47 @@ export default function EditorPage() {
 
     } catch (error) {
       console.error("Error completing assignment:", error);
+      alert(`Error: ${error.message}`);
+    }
+  };
+
+  // Handle revision request
+  const handleRequestRevision = async () => {
+    if (!revisionNotes || !revisionNotes.trim()) {
+      alert('Please provide a reason for revision.');
+      return;
+    }
+
+    try {
+      const url = new URL(`${API_BASE_URL}/request-revision`);
+      url.searchParams.append('assignment_id', selectedAssignment.assignment_id);
+      url.searchParams.append('revision_notes', revisionNotes.trim());
+
+      const response = await authenticatedFetch(url.toString(), { method: 'POST' });
+      const result = await response.json();
+
+      console.log("Revision requested successfully:", result);
+
+      // Update assignments and stats immediately
+      setAssignments(prevAssignments => {
+        const updatedAssignments = prevAssignments.map(assignment =>
+          assignment.assignment_id === selectedAssignment.assignment_id
+            ? {
+              ...assignment,
+              assignment_status: 'REVISION_NEEDED',
+              revision_notes: revisionNotes.trim(),
+              updated_at: new Date().toISOString()
+            }
+            : assignment
+        );
+        setStats(calculateStats(updatedAssignments));
+        return updatedAssignments;
+      });
+
+      handleCloseRevisionModal();
+
+    } catch (error) {
+      console.error("Error requesting revision:", error);
       alert(`Error: ${error.message}`);
     }
   };
@@ -562,17 +624,52 @@ export default function EditorPage() {
                       {assignment.editor_notes && (
                         <p className="task-card__notes"><strong>My Notes:</strong> <em>{assignment.editor_notes}</em></p>
                       )}
+
+                      {assignment.revision_notes && (
+                        <p className="task-card__notes">
+                          <strong>Revision Notes:</strong> <em>{assignment.revision_notes}</em>
+                        </p>
+                      )}
                     </div>
 
-                    {/* Action Buttons */}
-                    {assignment.assignment_status === 'IN_PROGRESS' && (
-                      <div className="task-card__actions">
+                    {/* Action Buttons - Updated to show Complete button in both IN_PROGRESS and REVISION_NEEDED */}
+                    {(assignment.assignment_status === 'IN_PROGRESS' || assignment.assignment_status === 'REVISION_NEEDED') && (
+                      <div className="task-card__actions" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                         <button
                           className="btn btn--primary"
                           onClick={() => handleOpenModal(assignment)}
+                          style={{ flex: '1', minWidth: '120px' }}
                         >
                           Complete Assignment
                         </button>
+
+                        {/* Only show Request Revision button for IN_PROGRESS assignments */}
+                        {assignment.assignment_status === 'IN_PROGRESS' && (
+                          <button
+                            className="btn btn--warning"
+                            onClick={() => handleOpenRevisionModal(assignment)}
+                            style={{
+                              backgroundColor: '#ffc107',
+                              color: '#212529',
+                              border: 'none',
+                              borderRadius: '6px',
+                              padding: '8px 16px',
+                              fontSize: '14px',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                              flex: '1',
+                              minWidth: '120px'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.target.style.backgroundColor = '#e0a800';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.backgroundColor = '#ffc107';
+                            }}
+                          >
+                            Request Revision
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -642,8 +739,16 @@ export default function EditorPage() {
               <p><strong>Video from:</strong> {selectedAssignment?.volunteer_name}</p>
               <p><strong>Assigned by:</strong> {selectedAssignment?.manager_name || 'Unknown Manager'}</p>
               <p><strong>Assigned on:</strong> {formatDateTime(selectedAssignment?.assigned_at)}</p>
+              <p><strong>Current Status:</strong>
+                <span className={`status-badge status-${selectedAssignment?.assignment_status.toLowerCase().replace('_', '-')}`} style={{ marginLeft: '8px' }}>
+                  {selectedAssignment?.assignment_status.replace('_', ' ')}
+                </span>
+              </p>
               {selectedAssignment?.manager_notes && (
                 <p><strong>Manager Instructions:</strong> <em>{selectedAssignment.manager_notes}</em></p>
+              )}
+              {selectedAssignment?.revision_notes && (
+                <p><strong>Revision Notes:</strong> <em>{selectedAssignment.revision_notes}</em></p>
               )}
             </div>
 
@@ -676,6 +781,58 @@ export default function EditorPage() {
               </button>
               <button className="btn btn--primary" onClick={handleCompleteAssignment}>
                 Complete Assignment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Revision Modal */}
+      {showRevisionModal && (
+        <div className="modal-backdrop">
+          <div className="modal-content">
+            <h2>Request Revision</h2>
+            <div className="assignment-context" style={{
+              backgroundColor: '#fff3cd',
+              padding: '15px',
+              borderRadius: '8px',
+              marginBottom: '20px',
+              border: '1px solid #ffeaa7'
+            }}>
+              <p><strong>Video from:</strong> {selectedAssignment?.volunteer_name}</p>
+              <p><strong>Assigned by:</strong> {selectedAssignment?.manager_name || 'Unknown Manager'}</p>
+              <p><strong>Assigned on:</strong> {formatDateTime(selectedAssignment?.assigned_at)}</p>
+              {selectedAssignment?.manager_notes && (
+                <p><strong>Manager Instructions:</strong> <em>{selectedAssignment.manager_notes}</em></p>
+              )}
+            </div>
+
+            <div className="modal-form">
+              <label htmlFor="revision-notes">Reason for Revision *</label>
+              <textarea
+                id="revision-notes"
+                className="modal-textarea"
+                placeholder="Explain why this assignment needs revision..."
+                value={revisionNotes}
+                onChange={(e) => setRevisionNotes(e.target.value)}
+                rows={4}
+                required
+              />
+            </div>
+
+            <div className="modal-actions">
+              <button className="btn btn--secondary" onClick={handleCloseRevisionModal}>
+                Cancel
+              </button>
+              <button
+                className="btn btn--warning"
+                onClick={handleRequestRevision}
+                style={{
+                  backgroundColor: '#ffc107',
+                  color: '#212529'
+                }}
+              >
+                Request Revision
               </button>
             </div>
           </div>
