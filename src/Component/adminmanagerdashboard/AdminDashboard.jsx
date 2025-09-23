@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BarChart, Bar, LineChart, Line, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import './AdminDashboard.css';
-
+import LogoutButton from '../Auth/logout/logout.jsx'; // Import the LogoutButton component
 // The base URL for your FastAPI backend
 const API_BASE_URL = 'http://localhost:8000/api/v1/admin';
 
@@ -754,8 +754,14 @@ export default function AdminDashboard() {
                 </div>
             )}
 
-            <div className="admin-footer">
-                <Link to="/" className="footer-link">Back to Home</Link>
+            <div className="admin-footer-toolbar">
+                <Link to="/" className="sidebar-link">Back to Home</Link>
+                <LogoutButton
+                    className="sidebar-link"
+                    onBeforeLogout={() => {
+                        if (eventSourceRef.current) { eventSourceRef.current.close(); eventSourceRef.current = null; } // stop SSE [web:3]
+                    }}
+                />
             </div>
         </div>
     );

@@ -751,3 +751,9 @@
     justify-content: center;
   }
 }
+/* reuse existing .sidebar-link base; only override color tokens */
+.sidebar-link.logout-variant {
+  background: #e03131; /* red */
+  color: #fff;
+}
+.sidebar-link.logout-variant:hover { background: #c92a2a; }

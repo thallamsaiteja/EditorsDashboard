@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './ManagerPage.css';
+import LogoutButton from '../Auth/logout/logout.jsx'; // Import the LogoutButton component
 
 // The base URL for your FastAPI backend
 const API_BASE_URL = 'http://localhost:8000/api/v1/manager';
@@ -575,6 +576,15 @@ function ManagerPage() {
                         <p className="sidebar-profile__role">
                             {managerProfile?.role || 'MANAGER'} • {managerProfile?.is_verified ? 'Verified' : 'Pending'}
                         </p>
+
+
+                        <LogoutButton
+                            className="sidebar-link"
+                            onBeforeLogout={() => {
+                                if (eventSourceRef.current) { eventSourceRef.current.close(); eventSourceRef.current = null; } // stop SSE [web:3]
+                            }}
+                        />
+
                     </div>
 
                     <h3>Today's Editor Workload</h3>

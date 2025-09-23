@@ -577,3 +577,20 @@
     text-align: left;
   }
 }
+
+/* keeps both controls in one row; pushes Logout to the far right */
+.admin-footer-toolbar {
+  display: flex;                        /* enable flex row */             /* [web:161] */
+  justify-content: space-between;       /* first left, last right */      /* [web:153] */
+  align-items: center;                  /* vertical align center */        /* [web:158] */
+  gap: 12px;                            /* spacing if ever stacked */
+  margin-top: 12px;
+}
+
+/* optional: make both controls identical width/height if desired */
+.admin-footer-toolbar .sidebar-link {
+  display: inline-flex;                 /* consistent vertical centering */
+  align-items: center;
+  justify-content: center;
+  min-width: 120px;
+}

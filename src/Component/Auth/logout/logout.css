@@ -1,0 +1,10 @@
+/* src/Component/logout/logout.css */
+.logout-btn {
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 6px;
+  background: #e03131;
+  color: #fff;
+  cursor: pointer;
+}
+.logout-btn:hover { background: #c92a2a; }
