@@ -216,12 +216,10 @@ function ManagerPage() {
                                 [{ ...updateData }, ...prev]
                         );
                     } else if (updateData.event === 'status_update') {
-                        setSubmissions(prev =>
-                            prev.map(sub =>
-                                sub.id === updateData.id
-                                    ? { ...sub, status: updateData.status, assigned_editor_id: updateData.assigned_editor_id || sub.assigned_editor_id }
-                                    : sub
-                            )
+                        setSubmissions(prev => prev.map(sub => sub.id === updateData.id
+                            ? { ...sub, ...updateData }
+                            : sub
+                        )
                         );
                     } else if (updateData.event === 'assignment_created') {
                         setSubmissions(prev =>
