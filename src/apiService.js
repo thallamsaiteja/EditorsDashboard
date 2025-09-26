@@ -2,7 +2,7 @@
 // const BASE_URL = 'http://localhost:8000/api/v1/auth'; 
 // import// Adjust if your backend runs on a different port
 import config from '../config.js';
-const API_BASE_URL = config.AUTH_API;
+const BASE_URL = config.AUTH_API;
 const handleResponse = async (response) => {
     // Try to parse the JSON body of the response, even for errors
     const responseData = await response.json().catch(() => ({}));
