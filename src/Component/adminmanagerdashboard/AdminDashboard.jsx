@@ -2,9 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BarChart, Bar, LineChart, Line, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import './AdminDashboard.css';
-import LogoutButton from '../Auth/logout/logout.jsx'; // Import the LogoutButton component
+import LogoutButton from '../Auth/logout/logout.jsx';
+import config from '../../config.js'; // Import the LogoutButton component
 // The base URL for your FastAPI backend
-const API_BASE_URL = 'http://localhost:8000/api/v1/admin';
+// const API_BASE_URL = 'http://localhost:8000/api/v1/admin';
+const API_BASE_URL = config.ADMIN_API;
+
 
 export default function AdminDashboard() {
     // Main state

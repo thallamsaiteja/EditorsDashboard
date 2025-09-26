@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './ManagerPage.css';
 import LogoutButton from '../Auth/logout/logout.jsx'; // Import the LogoutButton component
-
+import config from '../../config.js';
 // The base URL for your FastAPI backend
-const API_BASE_URL = 'http://localhost:8000/api/v1/manager';
+// const API_BASE_URL = 'http://localhost:8000/api/v1/manager';
+const API_BASE_URL = config.MANAGER_API;
 
 const TAB_OPTIONS = [
     { key: 'review', label: 'Review', statuses: ['pending_review', 'PENDING_REVIEW', 'accepted', 'ACCEPTED'] },

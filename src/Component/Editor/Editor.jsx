@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './Editor.css';
 import LogoutButton from '../Auth/logout/logout.jsx'; // Import the LogoutButton component
-
+import config from '../../config.js';
 // The base URL for your FastAPI backend
-const API_BASE_URL = 'http://localhost:8000/api/v1/editor';
+// const API_BASE_URL = 'http://localhost:8000/api/v1/editor';
+const API_BASE_URL = config.EDITOR_API;
+
 
 export default function EditorPage() {
   const [assignments, setAssignments] = useState([]);
