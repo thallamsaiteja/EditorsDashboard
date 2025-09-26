@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './Registration.css';
-import { registerEditorApi } from '../../../apiService.js';  
+import { registerEditorApi } from '../../../apiService.js';
 import { registrationSchema } from '../../../validateSchema.js';
 
 export default function Registration() {
@@ -79,7 +79,7 @@ export default function Registration() {
     return (
         <div className='registration_container'>
             <span className="material-symbols-outlined" style={{ fontSize: '50px' }}>person_add</span>
-            <h1 className='registration_welcome_heading'>Create Editor Account</h1>
+            <h1 className='registration_welcome_heading'>Create Account</h1>
 
             <div className='registration_card'>
                 <form onSubmit={handleSubmit} noValidate>
@@ -94,10 +94,10 @@ export default function Registration() {
 
                     <input name="email" value={formData.email} onChange={handleInputChange} required type="email" className="registration_input" placeholder='Email Address' />
                     {errors.email && <p className="error-message">{errors.email}</p>}
-                    
+
                     <input name="mobileNumber" value={formData.mobileNumber} onChange={handleInputChange} required type="numeric" maxLength="10" className="registration_input" placeholder='Mobile Number' />
                     {errors.mobileNumber && <p className="error-message">{errors.mobileNumber}</p>}
-                    
+
                     <div className="password-input-wrapper">
                         <input name="password" value={formData.password} onChange={handleInputChange} required type={isPasswordVisible ? "text" : "password"} className="registration_input" placeholder='Password' />
                         <span onClick={togglePasswordVisibility} className="material-symbols-outlined password-toggle-icon">{isPasswordVisible ? "visibility_off" : "visibility"}</span>
