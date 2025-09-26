@@ -1,8 +1,66 @@
 // The base URL for your authentication and management endpoints
-// const BASE_URL = 'http://localhost:8000/api/v1/auth'; 
-// import// Adjust if your backend runs on a different port
 import config from '../src/config';
+
 const BASE_URL = config.AUTH_API;
+
+// Request cache to prevent duplicate simultaneous requests
+class RequestCache {
+    constructor() {
+        this.cache = new Map();
+        this.abortControllers = new Map();
+    }
+
+    async get(key, requestFn, timeout = 10000) {
+        // If request is already in progress, return the same promise
+        if (this.cache.has(key)) {
+            console.log(`Returning cached request for: ${key}`);
+            return this.cache.get(key);
+        }
+
+        // Create AbortController for this request
+        const controller = new AbortController();
+        this.abortControllers.set(key, controller);
+
+        // Create timeout for the request
+        const timeoutId = setTimeout(() => {
+            controller.abort();
+        }, timeout);
+
+        // Create new request promise
+        const promise = requestFn(controller.signal)
+            .finally(() => {
+                // Remove from cache and cleanup when done
+                clearTimeout(timeoutId);
+                this.cache.delete(key);
+                this.abortControllers.delete(key);
+            });
+
+        // Cache the promise
+        this.cache.set(key, promise);
+
+        return promise;
+    }
+
+    // Cancel specific request
+    cancel(key) {
+        if (this.abortControllers.has(key)) {
+            this.abortControllers.get(key).abort();
+            this.cache.delete(key);
+            this.abortControllers.delete(key);
+        }
+    }
+
+    // Clear all pending requests
+    clearAll() {
+        this.abortControllers.forEach(controller => controller.abort());
+        this.cache.clear();
+        this.abortControllers.clear();
+    }
+}
+
+// Global request cache instance
+const requestCache = new RequestCache();
+
 const handleResponse = async (response) => {
     // Try to parse the JSON body of the response, even for errors
     const responseData = await response.json().catch(() => ({}));
@@ -19,8 +77,13 @@ const handleResponse = async (response) => {
             errorMessage = responseData.detail;
         }
 
+        // Add status code to error for better debugging
+        const error = new Error(errorMessage);
+        error.status = response.status;
+        error.response = response;
+
         // Throw an error with the specific message from the backend
-        throw new Error(errorMessage);
+        throw error;
     }
 
     // If the response is successful, return the JSON data
@@ -28,20 +91,54 @@ const handleResponse = async (response) => {
 };
 
 /**
+ * Enhanced fetch with retry logic and better error handling
+ */
+const enhancedFetch = async (url, options = {}, signal = null) => {
+    const fetchOptions = {
+        ...options,
+        signal: signal || options.signal,
+    };
+
+    try {
+        const response = await fetch(url, fetchOptions);
+        return handleResponse(response);
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            console.log('Request cancelled:', url);
+            throw new Error('Request cancelled');
+        }
+        throw error;
+    }
+};
+
+/**
  * A helper function to retrieve the saved JWT token from the browser's cookies.
  */
 const getAuthToken = () => {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; authToken=`);
-    if (parts.length === 2) return parts.pop().split(';').shift();
-    return null;
+    try {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; authToken=`);
+        if (parts.length === 2) {
+            const token = parts.pop().split(';').shift();
+            return token && token !== 'undefined' ? token : null;
+        }
+        return null;
+    } catch (error) {
+        console.error('Error getting auth token:', error);
+        return null;
+    }
 };
 
 /**
  * Helper function to clear authentication token
  */
 const clearAuthToken = () => {
-    document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+    try {
+        document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+        console.log('Auth token cleared');
+    } catch (error) {
+        console.error('Error clearing auth token:', error);
+    }
 };
 
 // === AUTHENTICATION APIs ===
@@ -50,24 +147,28 @@ const clearAuthToken = () => {
  * Register a new editor account
  */
 export const registerEditorApi = async (userData) => {
-    const response = await fetch(`${BASE_URL}/register/editor`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userData),
+    const cacheKey = `register_editor_${userData.email}`;
+    return requestCache.get(cacheKey, async (signal) => {
+        return enhancedFetch(`${BASE_URL}/register/editor`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userData),
+        }, signal);
     });
-    return handleResponse(response);
 };
 
 /**
  * Register a new manager account
  */
 export const registerManagerApi = async (userData) => {
-    const response = await fetch(`${BASE_URL}/register/manager`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userData),
+    const cacheKey = `register_manager_${userData.email}`;
+    return requestCache.get(cacheKey, async (signal) => {
+        return enhancedFetch(`${BASE_URL}/register/manager`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userData),
+        }, signal);
     });
-    return handleResponse(response);
 };
 
 /**
@@ -75,12 +176,18 @@ export const registerManagerApi = async (userData) => {
  * Returns access_token and redirect_url from backend
  */
 export const loginUserApi = async (credentials) => {
-    const response = await fetch(`${BASE_URL}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(credentials),
+    const cacheKey = `login_${credentials.username}`;
+
+    // Cancel any existing login attempts
+    requestCache.cancel(cacheKey);
+
+    return requestCache.get(cacheKey, async (signal) => {
+        return enhancedFetch(`${BASE_URL}/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(credentials),
+        }, signal);
     });
-    return handleResponse(response);
 };
 
 /**
@@ -88,33 +195,46 @@ export const loginUserApi = async (credentials) => {
  * This replaces client-side JWT decoding for security
  */
 export const validateTokenApi = async (token, requestedPath) => {
-    try {
-        const response = await fetch(`${BASE_URL}/validate-access`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-                requested_path: requestedPath
-            }),
-        });
+    const cacheKey = `validate_${token.substring(0, 10)}_${requestedPath}`;
 
-        const data = await response.json().catch(() => ({}));
+    return requestCache.get(cacheKey, async (signal) => {
+        try {
+            const response = await fetch(`${BASE_URL}/validate-access`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    requested_path: requestedPath
+                }),
+                signal
+            });
 
-        if (!response.ok) {
-            return { valid: false, hasPermission: false };
+            if (signal?.aborted) {
+                throw new Error('Request cancelled');
+            }
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                console.log('Validation failed:', response.status, data);
+                return { valid: false, hasPermission: false, status: response.status };
+            }
+
+            return {
+                valid: true,
+                hasPermission: data.has_permission,
+                user: data.user
+            };
+        } catch (error) {
+            if (error.name === 'AbortError' || error.message === 'Request cancelled') {
+                throw error;
+            }
+            console.error('Token validation error:', error);
+            return { valid: false, hasPermission: false, error: error.message };
         }
-
-        return {
-            valid: true,
-            hasPermission: data.has_permission,
-            user: data.user
-        };
-    } catch (error) {
-        console.error('Token validation error:', error);
-        return { valid: false, hasPermission: false };
-    }
+    }, 5000); // 5 second timeout for validation
 };
 
 /**
@@ -125,6 +245,11 @@ export const logoutApi = async () => {
         const token = getAuthToken();
 
         if (token) {
+            const cacheKey = `logout_${token.substring(0, 10)}`;
+
+            // Cancel any pending requests
+            requestCache.clearAll();
+
             const response = await fetch(`${BASE_URL}/logout`, {
                 method: 'POST',
                 headers: {
@@ -160,12 +285,15 @@ export const getCurrentUserApi = async () => {
     const token = getAuthToken();
     if (!token) throw new Error('Authentication token not found. Please log in.');
 
-    const response = await fetch(`${BASE_URL}/me`, {
-        headers: {
-            'Authorization': `Bearer ${token}`,
-        },
+    const cacheKey = `profile_${token.substring(0, 10)}`;
+
+    return requestCache.get(cacheKey, async (signal) => {
+        return enhancedFetch(`${BASE_URL}/me`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+            },
+        }, signal);
     });
-    return handleResponse(response);
 };
 
 /**
@@ -175,12 +303,15 @@ export const getCurrentUserPermissionsApi = async () => {
     const token = getAuthToken();
     if (!token) throw new Error('Authentication token not found. Please log in.');
 
-    const response = await fetch(`${BASE_URL}/me/permissions`, {
-        headers: {
-            'Authorization': `Bearer ${token}`,
-        },
+    const cacheKey = `permissions_${token.substring(0, 10)}`;
+
+    return requestCache.get(cacheKey, async (signal) => {
+        return enhancedFetch(`${BASE_URL}/me/permissions`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+            },
+        }, signal);
     });
-    return handleResponse(response);
 };
 
 // === AVAILABILITY CHECK APIs ===
@@ -189,16 +320,22 @@ export const getCurrentUserPermissionsApi = async () => {
  * Check if username is available
  */
 export const checkUsernameAvailabilityApi = async (username) => {
-    const response = await fetch(`${BASE_URL}/check-username/${encodeURIComponent(username)}`);
-    return handleResponse(response);
+    const cacheKey = `check_username_${username}`;
+
+    return requestCache.get(cacheKey, async (signal) => {
+        return enhancedFetch(`${BASE_URL}/check-username/${encodeURIComponent(username)}`, {}, signal);
+    });
 };
 
 /**
  * Check if email is available
  */
 export const checkEmailAvailabilityApi = async (email) => {
-    const response = await fetch(`${BASE_URL}/check-email/${encodeURIComponent(email)}`);
-    return handleResponse(response);
+    const cacheKey = `check_email_${email}`;
+
+    return requestCache.get(cacheKey, async (signal) => {
+        return enhancedFetch(`${BASE_URL}/check-email/${encodeURIComponent(email)}`, {}, signal);
+    });
 };
 
 // === MANAGER APIs ===
@@ -210,10 +347,13 @@ export const getManagerTeamApi = async () => {
     const token = getAuthToken();
     if (!token) throw new Error('Authentication token not found.');
 
-    const response = await fetch(`${BASE_URL}/manager/team`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+    const cacheKey = `manager_team_${token.substring(0, 10)}`;
+
+    return requestCache.get(cacheKey, async (signal) => {
+        return enhancedFetch(`${BASE_URL}/manager/team`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+        }, signal);
     });
-    return handleResponse(response);
 };
 
 /**
@@ -223,15 +363,18 @@ export const updateUserApi = async (userId, updateData) => {
     const token = getAuthToken();
     if (!token) throw new Error('Authentication token not found.');
 
-    const response = await fetch(`${BASE_URL}/manager/users/${userId}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(updateData),
+    const cacheKey = `update_user_${userId}_${Date.now()}`;
+
+    return requestCache.get(cacheKey, async (signal) => {
+        return enhancedFetch(`${BASE_URL}/manager/users/${userId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify(updateData),
+        }, signal);
     });
-    return handleResponse(response);
 };
 
 /**
@@ -266,10 +409,13 @@ export const getAdminUserListApi = async () => {
     const token = getAuthToken();
     if (!token) throw new Error('Authentication token not found.');
 
-    const response = await fetch(`${BASE_URL}/admin/users`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+    const cacheKey = `admin_users_${token.substring(0, 10)}`;
+
+    return requestCache.get(cacheKey, async (signal) => {
+        return enhancedFetch(`${BASE_URL}/admin/users`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+        }, signal);
     });
-    return handleResponse(response);
 };
 
 /**
@@ -279,15 +425,18 @@ export const changeUserRoleApi = async (userId, newRole) => {
     const token = getAuthToken();
     if (!token) throw new Error('Authentication token not found.');
 
-    const response = await fetch(`${BASE_URL}/admin/users/${userId}/role`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(newRole), // Send role directly as per your backend
+    const cacheKey = `change_role_${userId}_${Date.now()}`;
+
+    return requestCache.get(cacheKey, async (signal) => {
+        return enhancedFetch(`${BASE_URL}/admin/users/${userId}/role`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify(newRole),
+        }, signal);
     });
-    return handleResponse(response);
 };
 
 /**
@@ -313,10 +462,13 @@ export const verifyEditorAccessApi = async () => {
     const token = getAuthToken();
     if (!token) throw new Error('Authentication token not found.');
 
-    const response = await fetch(`${BASE_URL}/verify/editor`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+    const cacheKey = `verify_editor_${token.substring(0, 10)}`;
+
+    return requestCache.get(cacheKey, async (signal) => {
+        return enhancedFetch(`${BASE_URL}/verify/editor`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+        }, signal);
     });
-    return handleResponse(response);
 };
 
 /**
@@ -326,10 +478,13 @@ export const verifyManagerAccessApi = async () => {
     const token = getAuthToken();
     if (!token) throw new Error('Authentication token not found.');
 
-    const response = await fetch(`${BASE_URL}/verify/manager`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+    const cacheKey = `verify_manager_${token.substring(0, 10)}`;
+
+    return requestCache.get(cacheKey, async (signal) => {
+        return enhancedFetch(`${BASE_URL}/verify/manager`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+        }, signal);
     });
-    return handleResponse(response);
 };
 
 /**
@@ -339,10 +494,13 @@ export const verifyAdminAccessApi = async () => {
     const token = getAuthToken();
     if (!token) throw new Error('Authentication token not found.');
 
-    const response = await fetch(`${BASE_URL}/verify/admin`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+    const cacheKey = `verify_admin_${token.substring(0, 10)}`;
+
+    return requestCache.get(cacheKey, async (signal) => {
+        return enhancedFetch(`${BASE_URL}/verify/admin`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+        }, signal);
     });
-    return handleResponse(response);
 };
 
 // === HEALTH CHECK APIs ===
@@ -351,8 +509,11 @@ export const verifyAdminAccessApi = async () => {
  * Check authentication service health
  */
 export const checkAuthHealthApi = async () => {
-    const response = await fetch(`${BASE_URL}/health`);
-    return handleResponse(response);
+    const cacheKey = `health_check_${Date.now()}`;
+
+    return requestCache.get(cacheKey, async (signal) => {
+        return enhancedFetch(`${BASE_URL}/health`, {}, signal);
+    });
 };
 
 // === ERROR HANDLING UTILITIES ===
@@ -361,8 +522,9 @@ export const checkAuthHealthApi = async () => {
  * Handle authentication errors globally
  */
 export const handleAuthError = (error) => {
-    if (error.message.includes('token') || error.message.includes('401')) {
+    if (error.message.includes('token') || error.message.includes('401') || error.status === 401) {
         clearAuthToken();
+        requestCache.clearAll(); // Clear all pending requests
         window.location.href = '/login';
     }
     return error;
@@ -390,6 +552,7 @@ export const authenticatedFetch = async (url, options = {}) => {
 
     if (response.status === 401) {
         clearAuthToken();
+        requestCache.clearAll();
         window.location.href = '/login';
         throw new Error('Session expired. Please log in again.');
     }
@@ -428,8 +591,30 @@ export const testRoleAccessApi = async () => {
     const token = getAuthToken();
     if (!token) throw new Error('Authentication token not found.');
 
-    const response = await fetch(`${BASE_URL}/test/roles`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+    const cacheKey = `test_roles_${token.substring(0, 10)}`;
+
+    return requestCache.get(cacheKey, async (signal) => {
+        return enhancedFetch(`${BASE_URL}/test/roles`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+        }, signal);
     });
-    return handleResponse(response);
 };
+
+// === UTILITY FUNCTIONS FOR EXTERNAL USE ===
+
+/**
+ * Clear all pending requests (useful for logout or component cleanup)
+ */
+export const clearAllPendingRequests = () => {
+    requestCache.clearAll();
+};
+
+/**
+ * Cancel specific request by key pattern
+ */
+export const cancelRequest = (keyPattern) => {
+    requestCache.cancel(keyPattern);
+};
+
+// Export request cache for advanced usage if needed
+export { requestCache };
