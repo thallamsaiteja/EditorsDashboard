@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import './Editor.css';
-
+import LogoutButton from '../Auth/logout/logout.jsx'; // Import the LogoutButton component
+import config from '../../config.js';
 // The base URL for your FastAPI backend
-const API_BASE_URL = 'http://localhost:8000/api/v1/editor';
+// const API_BASE_URL = 'http://localhost:8000/api/v1/editor';
+const API_BASE_URL = config.EDITOR_API;
 
-// Default editor ID (temporary until auth is complete)
-const DEFAULT_EDITOR_ID = "5b6a490e-25df-4011-ae79-1a0dd4fb1fa4";
 
 export default function EditorPage() {
   const [assignments, setAssignments] = useState([]);
   const [editorProfile, setEditorProfile] = useState(null);
   const [stats, setStats] = useState({ total_assignments: 0, in_progress: 0, completed: 0, revision_needed: 0 });
-  const [currentView, setCurrentView] = useState('in_progress'); // 'in_progress', 'completed', 'revision_needed'
+  const [currentView, setCurrentView] = useState('in_progress');
   const [connectionStatus, setConnectionStatus] = useState('Disconnected');
   const [lastUpdate, setLastUpdate] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -20,7 +20,59 @@ export default function EditorPage() {
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [completedVideoUrl, setCompletedVideoUrl] = useState('');
   const [editorNotes, setEditorNotes] = useState('');
+
+  // New state for revision modal
+  const [showRevisionModal, setShowRevisionModal] = useState(false);
+  const [revisionNotes, setRevisionNotes] = useState('');
+
   const eventSourceRef = useRef(null);
+  const navigate = useNavigate();
+
+  // Helper function to get auth token
+  const getAuthToken = () => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; authToken=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+  };
+
+  // Helper function to clear auth token and redirect to login
+  const handleAuthError = () => {
+    document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+    navigate('/login');
+  };
+
+  // Helper function to make authenticated API calls
+  const authenticatedFetch = async (url, options = {}) => {
+    const token = getAuthToken();
+
+    if (!token) {
+      handleAuthError();
+      throw new Error('No authentication token found');
+    }
+
+    const defaultOptions = {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    };
+
+    const response = await fetch(url, { ...options, ...defaultOptions });
+
+    if (response.status === 401) {
+      handleAuthError();
+      throw new Error('Session expired. Please log in again.');
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+
+    return response;
+  };
 
   // Helper function to calculate stats from assignments
   const calculateStats = (assignmentsList) => {
@@ -64,59 +116,59 @@ export default function EditorPage() {
     }
   };
 
+  // Helper function to format date with classification for "Assigned" field
+  const formatDateTimeWithClassification = (dateTimeString) => {
+    if (!dateTimeString) return 'N/A';
+
+    try {
+      const date = new Date(dateTimeString);
+      const classification = getDateClassification(dateTimeString);
+
+      if (classification === 'today') {
+        return `Today at ${date.toLocaleTimeString()}`;
+      } else if (classification === 'yesterday') {
+        return `Yesterday at ${date.toLocaleTimeString()}`;
+      } else {
+        return date.toLocaleString();
+      }
+    } catch (error) {
+      return dateTimeString;
+    }
+  };
+
   // Helper function to check if URL is an api.video embed URL
   const isApiVideoUrl = (url) => {
     return url && url.includes('embed.api.video');
   };
 
-  // Helper function to handle video download
-  const handleDownload = async (videoUrl, volunteerName, assignmentId) => {
-    if (!videoUrl) {
-      alert('No video URL available for download');
+  useEffect(() => {
+    // Check authentication first
+    const token = getAuthToken();
+    if (!token) {
+      handleAuthError();
       return;
     }
 
-    try {
-      // For api.video URLs, we need to extract the actual video file URL
-      if (isApiVideoUrl(videoUrl)) {
-        // Open in new tab since api.video embed URLs can't be directly downloaded
-        window.open(videoUrl, '_blank');
-        return;
-      }
-
-      // For direct video URLs, trigger download
-      const link = document.createElement('a');
-      link.href = videoUrl;
-      link.download = `video_${volunteerName}_${assignmentId.slice(0, 8)}.mp4`;
-      link.target = '_blank';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (error) {
-      console.error('Download error:', error);
-      // Fallback: open in new tab
-      window.open(videoUrl, '_blank');
-    }
-  };
-
-  useEffect(() => {
     // Function to fetch initial data
     const fetchInitialData = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch(`${API_BASE_URL}/dashboard-data?editor_id=${DEFAULT_EDITOR_ID}`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+
+        const response = await authenticatedFetch(`${API_BASE_URL}/dashboard-data`);
         const data = await response.json();
+
         setAssignments(data.assignments || []);
         setStats(data.stats || calculateStats(data.assignments || []));
         setEditorProfile(data.editor_profile || null);
         setConnectionStatus('Connected');
         console.log('Initial editor data loaded:', data);
+
       } catch (error) {
         console.error("Failed to fetch initial editor data:", error);
         setConnectionStatus('Error loading data');
+        if (error.message.includes('authentication') || error.message.includes('Session expired')) {
+          handleAuthError();
+        }
       } finally {
         setIsLoading(false);
       }
@@ -128,7 +180,16 @@ export default function EditorPage() {
         eventSourceRef.current.close();
       }
 
-      const eventSource = new EventSource(`${API_BASE_URL}/dashboard-stream?editor_id=${DEFAULT_EDITOR_ID}`);
+      const token = getAuthToken();
+      if (!token) {
+        handleAuthError();
+        return;
+      }
+
+      // ✅ Pass token as query parameter for SSE (since headers don't work)
+      const sseUrl = `${API_BASE_URL}/dashboard-stream?token=${encodeURIComponent(token)}`;
+      const eventSource = new EventSource(sseUrl);
+
       eventSourceRef.current = eventSource;
 
       eventSource.onopen = () => {
@@ -164,10 +225,10 @@ export default function EditorPage() {
                   completed_video_url: null,
                   editor_notes: null,
                   manager_notes: null,
+                  revision_notes: null,
                   received_at: null
                 };
                 const updatedAssignments = [newAssignment, ...prevAssignments];
-                // Update stats immediately when assignments change
                 setStats(calculateStats(updatedAssignments));
                 return updatedAssignments;
               }
@@ -183,11 +244,11 @@ export default function EditorPage() {
                     assignment_status: updateData.status,
                     completed_video_url: updateData.completed_video_url,
                     completed_at: updateData.completed_at,
-                    editor_notes: updateData.editor_notes
+                    editor_notes: updateData.editor_notes,
+                    revision_notes: updateData.revision_notes
                   }
                   : assignment
               );
-              // Update stats immediately when assignments change
               setStats(calculateStats(updatedAssignments));
               return updatedAssignments;
             });
@@ -205,12 +266,19 @@ export default function EditorPage() {
       eventSource.onerror = (error) => {
         console.error("Editor SSE error:", error);
         setConnectionStatus('Connection Error');
-        setTimeout(() => {
-          if (eventSource.readyState === EventSource.CLOSED) {
-            console.log("Attempting to reconnect editor SSE...");
-            establishSSEConnection();
-          }
-        }, 5000);
+
+        // Check if it's an auth error (401)
+        if (error.target && error.target.readyState === EventSource.CLOSED) {
+          setTimeout(() => {
+            const currentToken = getAuthToken();
+            if (currentToken) {
+              console.log("Attempting to reconnect editor SSE...");
+              establishSSEConnection();
+            } else {
+              handleAuthError();
+            }
+          }, 5000);
+        }
       };
     };
 
@@ -225,7 +293,7 @@ export default function EditorPage() {
         eventSourceRef.current = null;
       }
     };
-  }, []);
+  }, [navigate]);
 
   // Handle opening completion modal
   const handleOpenModal = (assignment) => {
@@ -235,12 +303,26 @@ export default function EditorPage() {
     setShowModal(true);
   };
 
-  // Handle closing modal
+  // Handle closing completion modal
   const handleCloseModal = () => {
     setShowModal(false);
     setSelectedAssignment(null);
     setCompletedVideoUrl('');
     setEditorNotes('');
+  };
+
+  // Handle opening revision modal
+  const handleOpenRevisionModal = (assignment) => {
+    setSelectedAssignment(assignment);
+    setRevisionNotes('');
+    setShowRevisionModal(true);
+  };
+
+  // Handle closing revision modal
+  const handleCloseRevisionModal = () => {
+    setShowRevisionModal(false);
+    setSelectedAssignment(null);
+    setRevisionNotes('');
   };
 
   // Handle assignment completion
@@ -254,20 +336,14 @@ export default function EditorPage() {
       const url = new URL(`${API_BASE_URL}/complete-assignment`);
       url.searchParams.append('assignment_id', selectedAssignment.assignment_id);
       url.searchParams.append('completed_video_url', completedVideoUrl.trim());
-      url.searchParams.append('editor_id', DEFAULT_EDITOR_ID);
 
       if (editorNotes && editorNotes.trim()) {
         url.searchParams.append('editor_notes', editorNotes.trim());
       }
 
-      const response = await fetch(url.toString(), { method: 'POST' });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to complete assignment');
-      }
-
+      const response = await authenticatedFetch(url.toString(), { method: 'POST' });
       const result = await response.json();
+
       console.log("Assignment completed successfully:", result);
 
       // Update assignments and stats immediately
@@ -283,14 +359,55 @@ export default function EditorPage() {
             }
             : assignment
         );
-        // Update stats immediately
         setStats(calculateStats(updatedAssignments));
         return updatedAssignments;
       });
 
       handleCloseModal();
+
     } catch (error) {
       console.error("Error completing assignment:", error);
+      alert(`Error: ${error.message}`);
+    }
+  };
+
+  // Handle revision request
+  const handleRequestRevision = async () => {
+    if (!revisionNotes || !revisionNotes.trim()) {
+      alert('Please provide a reason for revision.');
+      return;
+    }
+
+    try {
+      const url = new URL(`${API_BASE_URL}/request-revision`);
+      url.searchParams.append('assignment_id', selectedAssignment.assignment_id);
+      url.searchParams.append('revision_notes', revisionNotes.trim());
+
+      const response = await authenticatedFetch(url.toString(), { method: 'POST' });
+      const result = await response.json();
+
+      console.log("Revision requested successfully:", result);
+
+      // Update assignments and stats immediately
+      setAssignments(prevAssignments => {
+        const updatedAssignments = prevAssignments.map(assignment =>
+          assignment.assignment_id === selectedAssignment.assignment_id
+            ? {
+              ...assignment,
+              assignment_status: 'REVISION_NEEDED',
+              revision_notes: revisionNotes.trim(),
+              updated_at: new Date().toISOString()
+            }
+            : assignment
+        );
+        setStats(calculateStats(updatedAssignments));
+        return updatedAssignments;
+      });
+
+      handleCloseRevisionModal();
+
+    } catch (error) {
+      console.error("Error requesting revision:", error);
       alert(`Error: ${error.message}`);
     }
   };
@@ -371,159 +488,158 @@ export default function EditorPage() {
           </button>
         </div>
 
-        {/* Task Grid */}
-        <div className="task-grid">
-          {filteredAssignments.length === 0 ? (
-            <div className="no-tasks">
-              <h3>No {currentView.replace('_', ' ')} assignments found</h3>
-              <p>Assignments will appear here when they are available.</p>
-            </div>
-          ) : (
-            filteredAssignments.map((assignment) => {
-              const dateClassification = getDateClassification(assignment.assigned_at);
-              const dateTag = getDateTag(dateClassification);
+        {/* Task Grid Container - IMPROVED SCROLLING AND SPACING */}
+        <div className="task-grid-container">
+          <div className="task-grid">
+            {filteredAssignments.length === 0 ? (
+              <div className="no-tasks">
+                <h3>No {currentView.replace('_', ' ')} assignments found</h3>
+                <p>Assignments will appear here when they are available.</p>
+              </div>
+            ) : (
+              filteredAssignments.map((assignment) => {
+                const dateClassification = getDateClassification(assignment.assigned_at);
+                const dateTag = getDateTag(dateClassification);
 
-              return (
-                <div key={assignment.assignment_id} className={`task-card status-${assignment.assignment_status.toLowerCase()}`}>
-                  {/* Date Tag */}
-                  <div style={{
-                    position: 'absolute',
-                    top: 8,
-                    right: 8,
-                    zIndex: 10,
-                    padding: '4px 8px',
-                    borderRadius: '12px',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    textTransform: 'uppercase',
-                    backgroundColor: dateClassification === 'today' ? '#d4edda' :
-                      dateClassification === 'yesterday' ? '#fff3cd' : '#f8d7da',
-                    color: dateClassification === 'today' ? '#155724' :
-                      dateClassification === 'yesterday' ? '#856404' : '#721c24',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                    pointerEvents: 'none'
-                  }}>
-                    {dateTag.text}
-                  </div>
-
-                  {/* Download Button */}
-                  <div style={{
-                    position: 'absolute',
-                    top: 8,
-                    left: 8,
-                    zIndex: 10
-                  }}>
-                    <button
-                      className="btn btn--download"
-                      onClick={() => handleDownload(assignment.video_url, assignment.volunteer_name, assignment.assignment_id)}
-                      title="Download video"
-                      style={{
-                        backgroundColor: '#007bff',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '50%',
-                        width: '32px',
-                        height: '32px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                        transition: 'all 0.2s'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.style.backgroundColor = '#0056b3';
-                        e.target.style.transform = 'scale(1.1)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.backgroundColor = '#007bff';
-                        e.target.style.transform = 'scale(1)';
-                      }}
-                    >
-                      ⬇
-                    </button>
-                  </div>
-
-                  {/* Video Preview */}
-                  <div className="task-card__preview">
-                    {assignment.video_url ? (
-                      isApiVideoUrl(assignment.video_url) ? (
-                        <iframe
-                          src={assignment.video_url}
-                          width="100%"
-                          height="100%"
-                          frameBorder="0"
-                          scrolling="no"
-                          allowFullScreen
-                          style={{
-                            width: '100%',
-                            height: '100%',
-                            border: 'none',
-                            borderRadius: '4px'
-                          }}
-                          title={`Video by ${assignment.volunteer_name}`}
-                        />
+                return (
+                  <div key={assignment.assignment_id} className={`task-card status-${assignment.assignment_status.toLowerCase()}`}>
+                    {/* Video Preview */}
+                    <div className="task-card__preview">
+                      {assignment.video_url ? (
+                        isApiVideoUrl(assignment.video_url) ? (
+                          <iframe
+                            src={assignment.video_url}
+                            width="100%"
+                            height="100%"
+                            frameBorder="0"
+                            scrolling="no"
+                            allowFullScreen
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              border: 'none',
+                              borderRadius: '0'
+                            }}
+                            title={`Video by ${assignment.volunteer_name}`}
+                          />
+                        ) : (
+                          <video 
+                            controls 
+                            style={{ 
+                              width: '100%', 
+                              height: '100%',
+                              borderRadius: '0'
+                            }}
+                          >
+                            <source src={assignment.video_url} type="video/mp4" />
+                            Your browser does not support the video tag.
+                          </video>
+                        )
                       ) : (
-                        <video controls style={{ width: '100%', height: '100%' }}>
-                          <source src={assignment.video_url} type="video/mp4" />
-                          Your browser does not support the video tag.
-                        </video>
-                      )
-                    ) : (
-                      <div className="video-placeholder">
-                        <p>Video Preview</p>
-                        <small>Loading...</small>
+                        <div className="video-placeholder">
+                          <p>Video Preview</p>
+                          <small>Loading...</small>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Assignment Details */}
+                    <div className="task-card__details">
+                      <h3 className="task-card__title">Video Assignment</h3>
+                      
+                      <div className="task-card__info-grid">
+                        <div className="info-item">
+                          <span className="info-label">From:</span>
+                          <span className="info-value">{assignment.volunteer_name}</span>
+                        </div>
+                        
+                        <div className="info-item">
+                          <span className="info-label">Assigned by:</span>
+                          <span className="info-value">{assignment.manager_name || 'Unknown Manager'}</span>
+                        </div>
+                        
+                        <div className="info-item">
+                          <span className="info-label">Assigned:</span>
+                          <span className="info-value">{formatDateTimeWithClassification(assignment.assigned_at)}</span>
+                        </div>
+                        
+                        <div className="info-item">
+                          <span className="info-label">Status:</span>
+                          <span className={`status-badge status-${assignment.assignment_status.toLowerCase().replace('_', '-')}`}>
+                            {assignment.assignment_status.replace('_', ' ')}
+                          </span>
+                        </div>
+
+                        {assignment.completed_at && (
+                          <div className="info-item">
+                            <span className="info-label">Completed:</span>
+                            <span className="info-value">{formatDateTime(assignment.completed_at)}</span>
+                          </div>
+                        )}
+
+                        {assignment.completed_video_url && (
+                          <div className="info-item completed-video">
+                            <span className="info-label">Final Video:</span>
+                            <a href={assignment.completed_video_url} target="_blank" rel="noopener noreferrer" className="video-link">
+                              View Final Video
+                            </a>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Notes Section */}
+                      <div className="task-card__notes-section">
+                        {assignment.manager_notes && (
+                          <div className="note-item">
+                            <span className="note-label">Manager Notes:</span>
+                            <p className="note-content">{assignment.manager_notes}</p>
+                          </div>
+                        )}
+
+                        {assignment.editor_notes && (
+                          <div className="note-item">
+                            <span className="note-label">My Notes:</span>
+                            <p className="note-content">{assignment.editor_notes}</p>
+                          </div>
+                        )}
+
+                        {assignment.revision_notes && (
+                          <div className="note-item revision-notes">
+                            <span className="note-label">Revision Notes:</span>
+                            <p className="note-content">{assignment.revision_notes}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action Buttons - UPDATED FOR REVISION NEEDED */}
+                    {(assignment.assignment_status === 'IN_PROGRESS' || assignment.assignment_status === 'REVISION_NEEDED') && (
+                      <div className="task-card__actions">
+                        <button
+                          className="btn btn--primary"
+                          onClick={() => handleOpenModal(assignment)}
+                        >
+                          {assignment.assignment_status === 'REVISION_NEEDED' 
+                            ? 'Submit Revised Version' 
+                            : 'Complete Assignment'
+                          }
+                        </button>
+
+                        {assignment.assignment_status === 'IN_PROGRESS' && (
+                          <button
+                            className="btn btn--warning"
+                            onClick={() => handleOpenRevisionModal(assignment)}
+                          >
+                            Request Revision
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
-
-                  {/* Assignment Details */}
-                  <div className="task-card__details">
-                    <h3 className="task-card__title">Video Assignment</h3>
-                    <p className="task-card__meta"><strong>From:</strong> {assignment.volunteer_name}</p>
-                    <p className="task-card__meta"><strong>Assigned by:</strong> {assignment.manager_name || 'Unknown Manager'}</p>
-                    <p className="task-card__meta"><strong>Assigned:</strong> {formatDateTime(assignment.assigned_at)}</p>
-                    <p className="task-card__meta"><strong>Status:</strong>
-                      <span className={`status-badge status-${assignment.assignment_status.toLowerCase().replace('_', '-')}`}>
-                        {assignment.assignment_status.replace('_', ' ')}
-                      </span>
-                    </p>
-
-                    {assignment.completed_at && (
-                      <p className="task-card__meta"><strong>Completed:</strong> {formatDateTime(assignment.completed_at)}</p>
-                    )}
-
-                    {assignment.completed_video_url && (
-                      <p className="task-card__meta--completed">
-                        <strong>Final Video:</strong> <a href={assignment.completed_video_url} target="_blank" rel="noopener noreferrer">View</a>
-                      </p>
-                    )}
-
-                    {assignment.manager_notes && (
-                      <p className="task-card__notes"><strong>Manager Notes:</strong> <em>{assignment.manager_notes}</em></p>
-                    )}
-
-                    {assignment.editor_notes && (
-                      <p className="task-card__notes"><strong>My Notes:</strong> <em>{assignment.editor_notes}</em></p>
-                    )}
-                  </div>
-
-                  {/* Action Buttons */}
-                  {assignment.assignment_status === 'IN_PROGRESS' && (
-                    <div className="task-card__actions">
-                      <button
-                        className="btn btn--primary"
-                        onClick={() => handleOpenModal(assignment)}
-                      >
-                        Complete Assignment
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
+                );
+              })
+            )}
+          </div>
         </div>
       </main>
 
@@ -561,31 +677,50 @@ export default function EditorPage() {
           </div>
         </div>
 
-        <Link to="/" className="sidebar-link">Back to Home</Link>
+        {/* <Link to="/" className="sidebar-link">Back to Home</Link> */}
+
+        <LogoutButton
+          className="sidebar-link"
+          onBeforeLogout={() => {
+            if (eventSourceRef.current) { eventSourceRef.current.close(); eventSourceRef.current = null; } // stop SSE [web:3]
+          }}
+        />
       </aside>
 
-      {/* Completion Modal */}
+      {/* Completion Modal - UPDATED TITLE */}
       {showModal && (
         <div className="modal-backdrop">
           <div className="modal-content">
-            <h2>Complete Assignment</h2>
-            <div className="assignment-context" style={{
-              backgroundColor: '#f8f9fa',
-              padding: '15px',
-              borderRadius: '8px',
-              marginBottom: '20px',
-              border: '1px solid #e9ecef'
-            }}>
+            <h2>
+              {selectedAssignment?.assignment_status === 'REVISION_NEEDED' 
+                ? 'Submit Revised Assignment' 
+                : 'Complete Assignment'
+              }
+            </h2>
+            <div className="assignment-context">
               <p><strong>Video from:</strong> {selectedAssignment?.volunteer_name}</p>
               <p><strong>Assigned by:</strong> {selectedAssignment?.manager_name || 'Unknown Manager'}</p>
               <p><strong>Assigned on:</strong> {formatDateTime(selectedAssignment?.assigned_at)}</p>
+              <p><strong>Current Status:</strong>
+                <span className={`status-badge status-${selectedAssignment?.assignment_status.toLowerCase().replace('_', '-')}`} style={{ marginLeft: '8px' }}>
+                  {selectedAssignment?.assignment_status.replace('_', ' ')}
+                </span>
+              </p>
               {selectedAssignment?.manager_notes && (
                 <p><strong>Manager Instructions:</strong> <em>{selectedAssignment.manager_notes}</em></p>
+              )}
+              {selectedAssignment?.revision_notes && (
+                <p><strong>Revision Notes:</strong> <em>{selectedAssignment.revision_notes}</em></p>
               )}
             </div>
 
             <div className="modal-form">
-              <label htmlFor="completed-url">Completed Video URL *</label>
+              <label htmlFor="completed-url">
+                {selectedAssignment?.assignment_status === 'REVISION_NEEDED' 
+                  ? 'Revised Video URL *' 
+                  : 'Completed Video URL *'
+                }
+              </label>
               <input
                 id="completed-url"
                 type="text"
@@ -600,7 +735,10 @@ export default function EditorPage() {
               <textarea
                 id="editor-notes"
                 className="modal-textarea"
-                placeholder="Add any notes about the editing process..."
+                placeholder={selectedAssignment?.assignment_status === 'REVISION_NEEDED' 
+                  ? 'Add notes about the revisions made...' 
+                  : 'Add any notes about the editing process...'
+                }
                 value={editorNotes}
                 onChange={(e) => setEditorNotes(e.target.value)}
                 rows={4}
@@ -612,7 +750,49 @@ export default function EditorPage() {
                 Cancel
               </button>
               <button className="btn btn--primary" onClick={handleCompleteAssignment}>
-                Complete Assignment
+                {selectedAssignment?.assignment_status === 'REVISION_NEEDED' 
+                  ? 'Submit Revised Version' 
+                  : 'Complete Assignment'
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Revision Modal */}
+      {showRevisionModal && (
+        <div className="modal-backdrop">
+          <div className="modal-content">
+            <h2>Request Revision</h2>
+            <div className="assignment-context revision-context">
+              <p><strong>Video from:</strong> {selectedAssignment?.volunteer_name}</p>
+              <p><strong>Assigned by:</strong> {selectedAssignment?.manager_name || 'Unknown Manager'}</p>
+              <p><strong>Assigned on:</strong> {formatDateTime(selectedAssignment?.assigned_at)}</p>
+              {selectedAssignment?.manager_notes && (
+                <p><strong>Manager Instructions:</strong> <em>{selectedAssignment.manager_notes}</em></p>
+              )}
+            </div>
+
+            <div className="modal-form">
+              <label htmlFor="revision-notes">Reason for Revision *</label>
+              <textarea
+                id="revision-notes"
+                className="modal-textarea"
+                placeholder="Explain why this assignment needs revision..."
+                value={revisionNotes}
+                onChange={(e) => setRevisionNotes(e.target.value)}
+                rows={4}
+                required
+              />
+            </div>
+
+            <div className="modal-actions">
+              <button className="btn btn--secondary" onClick={handleCloseRevisionModal}>
+                Cancel
+              </button>
+              <button className="btn btn--warning" onClick={handleRequestRevision}>
+                Request Revision
               </button>
             </div>
           </div>
