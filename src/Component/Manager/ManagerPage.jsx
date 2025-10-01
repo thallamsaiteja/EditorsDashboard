@@ -613,6 +613,23 @@ function ManagerPage() {
                                                 </span>
                                             </p>
 
+                                            {/* 🆕 ADD VIDEO DESCRIPTION DISPLAY HERE */}
+                                            <div className="video-description">
+                                                <p className="video-description-label">
+                                                    <span>📝</span>
+                                                    <strong>Video Description:</strong>
+                                                </p>
+                                                {item.description ? (
+                                                    <p className="video-description-text">
+                                                        "{item.description}"
+                                                    </p>
+                                                ) : (
+                                                    <p className="no-description">
+                                                        No description provided
+                                                    </p>
+                                                )}
+                                            </div>
+
                                             <p><strong>{isAssignment ? 'Assigned' : 'Received'}:</strong>
                                                 {formatDateTimeWithClassification(isAssignment ? item.assigned_at : item.received_at)}
                                             </p>
