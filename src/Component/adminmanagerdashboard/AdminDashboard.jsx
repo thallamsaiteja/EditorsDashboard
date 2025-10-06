@@ -9,27 +9,35 @@ import config from '../../config.js'; // Import the LogoutButton component
 const API_BASE_URL = config.ADMIN_API;
 
 
+
 export default function AdminDashboard() {
     // Main state
     const [dashboardData, setDashboardData] = useState(null);
     const [adminProfile, setAdminProfile] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [connectionStatus, setConnectionStatus] = useState('Disconnected');
-    const [lastUpdate, setLastUpdate] = useState(null);
     const [error, setError] = useState(null);
+
 
     // View states
     const [assignmentView, setAssignmentView] = useState('IN_PROGRESS');
     const [showAddUserModal, setShowAddUserModal] = useState(false);
+    const [showVolunteerModal, setShowVolunteerModal] = useState(false);
+    const [volunteerSearchTerm, setVolunteerSearchTerm] = useState('');
+    const [showProfileMenu, setShowProfileMenu] = useState(false);
+
 
     // Form states
     const [newUserName, setNewUserName] = useState('');
     const [newUserEmail, setNewUserEmail] = useState('');
     const [newUserRole, setNewUserRole] = useState('EDITOR');
 
+
     // SSE reference
     const eventSourceRef = useRef(null);
+    const profileMenuRef = useRef(null);
     const navigate = useNavigate();
+
 
     // Helper function to get auth token
     const getAuthToken = () => {
@@ -39,25 +47,30 @@ export default function AdminDashboard() {
         return null;
     };
 
+
     // Helper function to clear auth token and redirect to login
     const handleAuthError = () => {
         document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
         navigate('/login');
     };
 
+
     // Helper function to handle non-admin users
     const handleUnauthorizedAccess = () => {
         navigate('/unauthorized');
     };
 
+
     // Helper function to make authenticated API calls
     const authenticatedFetch = async (url, options = {}) => {
         const token = getAuthToken();
+
 
         if (!token) {
             handleAuthError();
             throw new Error('No authentication token found');
         }
+
 
         const defaultOptions = {
             headers: {
@@ -67,25 +80,31 @@ export default function AdminDashboard() {
             },
         };
 
+
         const response = await fetch(url, { ...options, ...defaultOptions });
+
 
         if (response.status === 401) {
             handleAuthError();
             throw new Error('Session expired. Please log in again.');
         }
 
+
         if (response.status === 403) {
             handleUnauthorizedAccess();
             throw new Error('Admin access required.');
         }
+
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
         }
 
+
         return response;
     };
+
 
     // Load initial dashboard data
     const fetchDashboardData = async () => {
@@ -93,18 +112,22 @@ export default function AdminDashboard() {
             setIsLoading(true);
             setError(null);
 
+
             const response = await authenticatedFetch(`${API_BASE_URL}/dashboard-data`);
             const data = await response.json();
+
 
             setDashboardData(data);
             setAdminProfile(data.admin_profile || null);
             setConnectionStatus('Connected');
             console.log('✅ Admin dashboard data loaded:', data);
 
+
         } catch (error) {
             console.error('❌ Failed to fetch admin dashboard data:', error);
             setError(error.message);
             setConnectionStatus('Error loading data');
+
 
             if (error.message.includes('authentication') || error.message.includes('Session expired')) {
                 handleAuthError();
@@ -116,11 +139,13 @@ export default function AdminDashboard() {
         }
     };
 
+
     // Establish SSE connection for real-time updates
     const establishSSEConnection = () => {
         if (eventSourceRef.current) {
             eventSourceRef.current.close();
         }
+
 
         const token = getAuthToken();
         if (!token) {
@@ -128,24 +153,25 @@ export default function AdminDashboard() {
             return;
         }
 
+
         try {
-            // ✅ Pass token as query parameter for SSE (since headers don't work)
             const sseUrl = `${API_BASE_URL}/dashboard-stream?token=${encodeURIComponent(token)}`;
             const eventSource = new EventSource(sseUrl);
             eventSourceRef.current = eventSource;
+
 
             eventSource.onopen = () => {
                 console.log('📡 Admin SSE connection established');
                 setConnectionStatus('Connected');
             };
 
+
             eventSource.addEventListener('admin-update', (event) => {
                 try {
                     const updateData = JSON.parse(event.data);
                     console.log('📊 Admin update received:', updateData);
-                    setLastUpdate(new Date().toLocaleTimeString());
 
-                    // Handle different types of updates
+
                     if (updateData.event === 'user_created') {
                         setDashboardData(prev => ({
                             ...prev,
@@ -171,21 +197,25 @@ export default function AdminDashboard() {
                         }));
                     }
 
-                    // Refresh overview data for any update
+
                     fetchOverviewData();
+
 
                 } catch (error) {
                     console.error('❌ Error parsing admin SSE data:', error);
                 }
             });
 
+
             eventSource.addEventListener('keep-alive', (event) => {
                 console.log('💓 Admin keep-alive received');
             });
 
+
             eventSource.onerror = (error) => {
                 console.error('❌ Admin SSE error:', error);
                 setConnectionStatus('Connection Error');
+
 
                 if (error.target && error.target.readyState === EventSource.CLOSED) {
                     setTimeout(() => {
@@ -200,11 +230,13 @@ export default function AdminDashboard() {
                 }
             };
 
+
         } catch (error) {
             console.error('❌ Failed to establish SSE connection:', error);
             setConnectionStatus('SSE Error');
         }
     };
+
 
     // Fetch only overview data for real-time updates
     const fetchOverviewData = async () => {
@@ -217,18 +249,34 @@ export default function AdminDashboard() {
         }
     };
 
+
+    // Handle clicking outside profile menu to close it
     useEffect(() => {
-        // Check authentication first
+        const handleClickOutside = (event) => {
+            if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+                setShowProfileMenu(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
+
+
+    useEffect(() => {
         const token = getAuthToken();
         if (!token) {
             handleAuthError();
             return;
         }
 
+
         fetchDashboardData();
         establishSSEConnection();
 
-        // Cleanup
+
         return () => {
             if (eventSourceRef.current) {
                 eventSourceRef.current.close();
@@ -236,6 +284,7 @@ export default function AdminDashboard() {
             }
         };
     }, [navigate]);
+
 
     // User management handlers
     const handleRoleChange = async (userId, newRole) => {
@@ -245,8 +294,10 @@ export default function AdminDashboard() {
                 body: JSON.stringify({ user_id: userId, new_role: newRole })
             });
 
+
             const result = await response.json();
             console.log('✅ Role updated:', result);
+
 
         } catch (error) {
             console.error('❌ Role update failed:', error);
@@ -254,14 +305,17 @@ export default function AdminDashboard() {
         }
     };
 
+
     const handleStatusToggle = async (userId) => {
         try {
             const response = await authenticatedFetch(`${API_BASE_URL}/management/users/${userId}/toggle-status`, {
                 method: 'POST'
             });
 
+
             const result = await response.json();
             console.log('✅ Status toggled:', result);
+
 
         } catch (error) {
             console.error('❌ Status toggle failed:', error);
@@ -269,13 +323,16 @@ export default function AdminDashboard() {
         }
     };
 
+
     const handleAddUser = async (e) => {
         e.preventDefault();
+
 
         if (!newUserName || !newUserEmail) {
             alert("Please fill out both name and email.");
             return;
         }
+
 
         try {
             const response = await authenticatedFetch(`${API_BASE_URL}/management/users`, {
@@ -287,25 +344,154 @@ export default function AdminDashboard() {
                 })
             });
 
+
             const result = await response.json();
             console.log('✅ User created:', result);
 
-            // Show temporary password to admin
+
             if (result.user.temporary_password) {
                 alert(`User created successfully!\nTemporary password: ${result.user.temporary_password}\n\nPlease share this with the user securely.`);
             }
 
-            // Reset form
+
             setNewUserName('');
             setNewUserEmail('');
             setNewUserRole('EDITOR');
             setShowAddUserModal(false);
+
 
         } catch (error) {
             console.error('❌ User creation failed:', error);
             alert(`Error creating user: ${error.message}`);
         }
     };
+
+
+    // Handle logout
+    const handleLogout = () => {
+        if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+            eventSourceRef.current = null;
+        }
+        
+        document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+        navigate('/login');
+    };
+
+
+    // Helper function to get top 5 volunteers and sort all volunteers
+    const getVolunteerData = () => {
+        const allVolunteers = dashboardData?.volunteer_performance || [];
+        
+        const sortedVolunteers = [...allVolunteers].sort((a, b) => {
+            const totalA = (a.accepted || 0) + (a.declined || 0);
+            const totalB = (b.accepted || 0) + (b.declined || 0);
+            return totalB - totalA;
+        });
+
+        const top5Volunteers = sortedVolunteers.slice(0, 5);
+        
+        return { top5Volunteers, allVolunteers: sortedVolunteers };
+    };
+
+
+    const getFilteredVolunteers = () => {
+        const { allVolunteers } = getVolunteerData();
+        
+        if (!volunteerSearchTerm.trim()) {
+            return allVolunteers;
+        }
+        
+        return allVolunteers.filter(volunteer => 
+            volunteer.name && volunteer.name.toLowerCase().includes(volunteerSearchTerm.toLowerCase())
+        );
+    };
+
+
+    const downloadVolunteerExcel = () => {
+        const { allVolunteers } = getVolunteerData();
+        
+        // Get current date and time for the Excel file
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+        const timeStr = now.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+        });
+        
+        const excelData = allVolunteers.map((volunteer, index) => {
+            const totalSubmissions = (volunteer.accepted || 0) + (volunteer.declined || 0);
+            const acceptanceRate = totalSubmissions > 0 
+                ? Math.round(((volunteer.accepted || 0) / totalSubmissions) * 100)
+                : 0;
+            
+            return {
+                'Rank': index + 1,
+                'Volunteer Name': volunteer.name || 'N/A',
+                'Accepted Submissions': volunteer.accepted || 0,
+                'Declined Submissions': volunteer.declined || 0,
+                'Total Submissions': totalSubmissions,
+                'Success Rate (%)': acceptanceRate,
+                'Performance Category': acceptanceRate >= 70 ? 'High Performer' : 
+                                      acceptanceRate >= 50 ? 'Average Performer' : 'Needs Improvement',
+                'Report Generated': dateStr,
+                'Generated At': timeStr
+            };
+        });
+        
+        const headers = Object.keys(excelData[0] || {});
+        const csvContent = [
+            headers.join(','),
+            ...excelData.map(row => 
+                headers.map(header => {
+                    const value = row[header];
+                    return typeof value === 'string' && (value.includes(',') || value.includes('"')) 
+                        ? `"${value.replace(/"/g, '""')}"` 
+                        : value;
+                }).join(',')
+            )
+        ].join('\n');
+        
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `volunteer_performance_${now.toISOString().split('T')[0]}_${now.getHours()}-${now.getMinutes()}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
+
+    const getCurrentDateTime = () => {
+        const now = new Date();
+        const options = {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        };
+        return now.toLocaleDateString('en-US', options);
+    };
+
+
+    const getTimeBasedGreeting = () => {
+        const hour = new Date().getHours();
+        if (hour < 12) return 'Good Morning';
+        if (hour < 17) return 'Good Afternoon';
+        return 'Good Evening';
+    };
+
 
     // Chart components with real data
     const DailySubmissionsChart = () => (
@@ -321,6 +507,7 @@ export default function AdminDashboard() {
         </ResponsiveContainer>
     );
 
+
     const EditorPerformanceChart = () => (
         <ResponsiveContainer width="100%" height={300}>
             <BarChart data={dashboardData?.editor_performance || []} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
@@ -335,19 +522,25 @@ export default function AdminDashboard() {
         </ResponsiveContainer>
     );
 
-    const VolunteerPerformanceChart = () => (
-        <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={dashboardData?.volunteer_performance || []} layout="vertical" margin={{ top: 5, right: 20, left: 30, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
-                <XAxis type="number" stroke="var(--text-secondary)" />
-                <YAxis type="category" dataKey="name" stroke="var(--text-secondary)" width={100} />
-                <Tooltip contentStyle={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }} />
-                <Legend />
-                <Bar dataKey="accepted" fill="var(--accent-blue)" name="Accepted" />
-                <Bar dataKey="declined" fill="var(--accent-red)" name="Declined" />
-            </BarChart>
-        </ResponsiveContainer>
-    );
+
+    const VolunteerPerformanceChart = () => {
+        const { top5Volunteers } = getVolunteerData();
+        
+        return (
+            <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={top5Volunteers} layout="vertical" margin={{ top: 5, right: 20, left: 30, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
+                    <XAxis type="number" stroke="var(--text-secondary)" />
+                    <YAxis type="category" dataKey="name" stroke="var(--text-secondary)" width={100} />
+                    <Tooltip contentStyle={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }} />
+                    <Legend />
+                    <Bar dataKey="accepted" fill="var(--accent-blue)" name="Accepted" />
+                    <Bar dataKey="declined" fill="var(--accent-red)" name="Declined" />
+                </BarChart>
+            </ResponsiveContainer>
+        );
+    };
+
 
     const PressurePerformanceChart = () => (
         <ResponsiveContainer width="100%" height={300}>
@@ -364,6 +557,7 @@ export default function AdminDashboard() {
         </ResponsiveContainer>
     );
 
+
     const formatDateTime = (dateTimeString) => {
         if (!dateTimeString) return 'N/A';
         try {
@@ -373,6 +567,7 @@ export default function AdminDashboard() {
             return dateTimeString;
         }
     };
+
 
     const getStatusText = (status) => {
         const statusMap = {
@@ -389,7 +584,9 @@ export default function AdminDashboard() {
         return statusMap[status] || status;
     };
 
+
     const getStatusClass = (status) => status.toLowerCase().replace('_', '-');
+
 
     if (isLoading) {
         return (
@@ -402,19 +599,21 @@ export default function AdminDashboard() {
         );
     }
 
+
     if (error) {
         return (
             <div className="admin-dashboard-layout">
                 <div className="error-container">
                     <h2>Dashboard Error</h2>
                     <p>Failed to load dashboard: {error}</p>
-                    <button onClick={fetchDashboardData} className="btn btn--primary">
+                    <button onClick={() => fetchDashboardData()} className="btn btn--primary">
                         Retry
                     </button>
                 </div>
             </div>
         );
     }
+
 
     if (!dashboardData) {
         return (
@@ -427,10 +626,11 @@ export default function AdminDashboard() {
         );
     }
 
-    // Filter assignments based on current view
+
     const filteredAssignments = dashboardData.assignments?.filter(assignment => {
         return assignment.status === assignmentView;
     }) || [];
+
 
     const assignmentCounts = {
         IN_PROGRESS: dashboardData.assignments?.filter(a => a.status === 'IN_PROGRESS').length || 0,
@@ -438,38 +638,107 @@ export default function AdminDashboard() {
         REVISION_NEEDED: dashboardData.assignments?.filter(a => a.status === 'REVISION_NEEDED').length || 0
     };
 
+
+    const filteredVolunteers = getFilteredVolunteers();
+
+
     return (
         <div className="admin-dashboard-layout">
+            {/* Simplified Header */}
             <header className="admin-header">
-                <div className="header-content">
-                    <div className="header-text">
-                        <h1>Admin Dashboard</h1>
-                        <p>Platform overview, performance analytics, and management tools.</p>
+                {/* Top Row - Breadcrumb Only */}
+                <div className="header-top-row">
+                    <div className="breadcrumb">
+                        <span className="breadcrumb-item">Home</span>
+                        <span className="breadcrumb-separator">›</span>
+                        <span className="breadcrumb-item active">Admin Dashboard</span>
                     </div>
-                    {/* ✅ NEW: Admin Profile Card */}
-                    {adminProfile && (
-                        <div className="admin-profile-card">
-                            {/* <div className="admin-profile-avatar">
-                                {adminProfile.full_name?.charAt(0) || 'A'}
-                            </div> */}
-                            <div className="admin-profile-info">
-                                <h3>{adminProfile.full_name || 'Administrator'} <p>{adminProfile.email}</p></h3>
-                                <span className="admin-badge">{adminProfile.role} </span>
-                            </div>
-                        </div>
-                    )}
                 </div>
-                <div className="connection-status">
-                    <span className={`status-indicator ${connectionStatus.toLowerCase().replace(' ', '-')}`}>
-                        ● {connectionStatus}
-                    </span>
-                    {lastUpdate && (
-                        <span className="last-update">
-                            Last update: {lastUpdate}
+
+                {/* Main Content Row */}
+                <div className="header-main-row">
+                    <div className="header-left">
+                        <h1 className="dashboard-title">
+                            {getTimeBasedGreeting()}, {adminProfile?.full_name?.split(' ')[0] || 'Administrator'}!
+                        </h1>
+                        <p className="dashboard-subtitle">
+                            Welcome to your comprehensive platform analytics and management center
+                        </p>
+                    </div>
+
+                    <div className="header-right">
+                        {adminProfile && (
+                            <div className="admin-profile-card">
+                                <div className="profile-avatar">
+                                    <div className="avatar-circle">
+                                        {adminProfile.full_name?.charAt(0) || 'A'}
+                                    </div>
+                                    <div className="online-indicator"></div>
+                                </div>
+                                <div className="profile-info">
+                                    <h3 className="profile-name">{adminProfile.full_name || 'Administrator'}</h3>
+                                    <p className="profile-email">{adminProfile.email}</p>
+                                    <span className="profile-role">ADMIN</span>
+                                </div>
+                                <div className="profile-actions" ref={profileMenuRef}>
+                                    <button 
+                                        className="btn btn--profile-menu" 
+                                        title="Profile Menu"
+                                        onClick={() => setShowProfileMenu(!showProfileMenu)}
+                                    >
+                                        ⚙️
+                                    </button>
+                                    
+                                    {/* Profile Dropdown Menu */}
+                                    {showProfileMenu && (
+                                        <div className="profile-dropdown">
+                                            <button 
+                                                className="dropdown-item"
+                                                onClick={() => {
+                                                    setShowAddUserModal(true);
+                                                    setShowProfileMenu(false);
+                                                }}
+                                            >
+                                                <span className="dropdown-icon">👤+</span>
+                                                Add User
+                                            </button>
+                                            <div className="dropdown-divider"></div>
+                                            <button 
+                                                className="dropdown-item logout-item"
+                                                onClick={() => {
+                                                    setShowProfileMenu(false);
+                                                    handleLogout();
+                                                }}
+                                            >
+                                                <span className="dropdown-icon">🚪</span>
+                                                Logout
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Platform Status - Blue Gradient */}
+                <div className="platform-status">
+                    <div className="status-item">
+                        <span className="status-label">Platform Status:</span>
+                        <span className={`status-indicator ${connectionStatus.toLowerCase().replace(' ', '-')}`}>
+                            <span className="status-dot"></span>
+                            {connectionStatus}
                         </span>
-                    )}
+                    </div>
+                    <div className="status-item">
+                        <span className="status-label">Session Time:</span>
+                        <span className="status-value">
+                            {getCurrentDateTime()}
+                        </span>
+                    </div>
                 </div>
             </header>
+
 
             {/* Stats Grid with Real Data */}
             <div className="stats-grid">
@@ -495,6 +764,7 @@ export default function AdminDashboard() {
                 </div>
             </div>
 
+
             {/* Charts Grid */}
             <div className="dashboard-grid">
                 <section className="dashboard-section chart-section">
@@ -504,12 +774,14 @@ export default function AdminDashboard() {
                     </div>
                 </section>
 
+
                 <section className="dashboard-section chart-section">
                     <h2 className="section-title">Team Performance Under Pressure</h2>
                     <div className="chart-container">
                         <PressurePerformanceChart />
                     </div>
                 </section>
+
 
                 <section className="dashboard-section chart-section">
                     <h2 className="section-title">Editor Workload & Performance</h2>
@@ -518,13 +790,23 @@ export default function AdminDashboard() {
                     </div>
                 </section>
 
+
                 <section className="dashboard-section chart-section">
-                    <h2 className="section-title">Volunteer Performance</h2>
+                    <div className="section-header-with-action">
+                        <h2 className="section-title">Top 5 Volunteer Performance</h2>
+                        <button 
+                            className="btn btn--view-more"
+                            onClick={() => setShowVolunteerModal(true)}
+                        >
+                            View More
+                        </button>
+                    </div>
                     <div className="chart-container">
                         <VolunteerPerformanceChart />
                     </div>
                 </section>
             </div>
+
 
             {/* Assignment Overview */}
             <section className="dashboard-section">
@@ -597,16 +879,11 @@ export default function AdminDashboard() {
                 </div>
             </section>
 
+
             {/* Team Management */}
             <section className="dashboard-section">
                 <div className="section-headerAdmin">
                     <h2 className="section-title">Manage Team</h2>
-                    {/* <button
-                        className="btn btn--primary"
-                        onClick={() => setShowAddUserModal(true)}
-                    >
-                        Add New User
-                    </button> */}
                 </div>
                 <div className="table-container scrollable-table">
                     <table className="data-table">
@@ -659,7 +936,8 @@ export default function AdminDashboard() {
                 </div>
             </section>
 
-            {/* Recent Submissions with Enhanced Scrolling */}
+
+            {/* Recent Submissions */}
             <section className="dashboard-section">
                 <h2 className="section-title">Recent Submissions from Volunteers</h2>
                 <div className="scrollable-submissions-container">
@@ -700,7 +978,7 @@ export default function AdminDashboard() {
                         </table>
                     </div>
 
-                    {/* Scroll Indicator */}
+
                     {dashboardData.recent_submissions && dashboardData.recent_submissions.length > 5 && (
                         <div className="scroll-indicator">
                             <span>↓ Scroll to see more submissions ↓</span>
@@ -708,6 +986,125 @@ export default function AdminDashboard() {
                     )}
                 </div>
             </section>
+
+
+            {/* Volunteer Performance Modal */}
+            {showVolunteerModal && (
+                <div className="modal-backdrop" onClick={() => setShowVolunteerModal(false)}>
+                    <div className="modal-content volunteer-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h2>All Volunteer Performance</h2>
+                            <div className="modal-header-actions">
+                                <button 
+                                    className="btn btn--download"
+                                    onClick={downloadVolunteerExcel}
+                                    title="Download Excel Report"
+                                >
+                                    📊 Download Excel
+                                </button>
+                                <button 
+                                    className="modal-close-btn"
+                                    onClick={() => setShowVolunteerModal(false)}
+                                >
+                                    ×
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="volunteer-search-container">
+                            <div className="search-input-wrapper">
+                                <input
+                                    type="text"
+                                    placeholder="Search volunteers by name..."
+                                    value={volunteerSearchTerm}
+                                    onChange={(e) => setVolunteerSearchTerm(e.target.value)}
+                                    className="volunteer-search-input"
+                                />
+                                <div className="search-icon">🔍</div>
+                            </div>
+                            {volunteerSearchTerm && (
+                                <div className="search-results-info">
+                                    Found {filteredVolunteers.length} volunteer{filteredVolunteers.length !== 1 ? 's' : ''}
+                                    <button 
+                                        className="clear-search-btn"
+                                        onClick={() => setVolunteerSearchTerm('')}
+                                    >
+                                        Clear
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="volunteer-list-container">
+                            {filteredVolunteers.length > 0 ? (
+                                <div className="volunteer-list">
+                                    {filteredVolunteers.map((volunteer, index) => {
+                                        const totalSubmissions = (volunteer.accepted || 0) + (volunteer.declined || 0);
+                                        const acceptanceRate = totalSubmissions > 0 
+                                            ? Math.round(((volunteer.accepted || 0) / totalSubmissions) * 100)
+                                            : 0;
+                                        
+                                        const { allVolunteers } = getVolunteerData();
+                                        const originalRank = allVolunteers.findIndex(v => v.name === volunteer.name) + 1;
+                                        
+                                        return (
+                                            <div key={volunteer.name || index} className="volunteer-item">
+                                                <div className="volunteer-info">
+                                                    <div className="volunteer-header">
+                                                        <h4 className="volunteer-name">{volunteer.name}</h4>
+                                                        <span className="volunteer-rank">#{originalRank}</span>
+                                                    </div>
+                                                    <div className="volunteer-stats">
+                                                        <div className="stat-group">
+                                                            <span className="stat-label">Accepted:</span>
+                                                            <span className="stat-value accepted">{volunteer.accepted || 0}</span>
+                                                        </div>
+                                                        <div className="stat-group">
+                                                            <span className="stat-label">Declined:</span>
+                                                            <span className="stat-value declined">{volunteer.declined || 0}</span>
+                                                        </div>
+                                                        <div className="stat-group">
+                                                            <span className="stat-label">Total:</span>
+                                                            <span className="stat-value total">{totalSubmissions}</span>
+                                                        </div>
+                                                        <div className="stat-group">
+                                                            <span className="stat-label">Success Rate:</span>
+                                                            <span className={`stat-value rate ${acceptanceRate >= 70 ? 'high' : acceptanceRate >= 50 ? 'medium' : 'low'}`}>
+                                                                {acceptanceRate}%
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="volunteer-performance-bar">
+                                                    <div className="performance-bar">
+                                                        <div 
+                                                            className="performance-accepted" 
+                                                            style={{ 
+                                                                width: totalSubmissions > 0 
+                                                                    ? `${((volunteer.accepted || 0) / totalSubmissions) * 100}%` 
+                                                                    : '0%' 
+                                                            }}
+                                                        ></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="no-volunteers">
+                                    {volunteerSearchTerm ? (
+                                        <p>No volunteers found matching "{volunteerSearchTerm}"</p>
+                                    ) : (
+                                        <p>No volunteer performance data available.</p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
 
             {/* Add User Modal */}
             {showAddUserModal && (
@@ -756,17 +1153,10 @@ export default function AdminDashboard() {
                 </div>
             )}
 
+
             <div className="admin-footer-toolbar">
                 <Link to="/" className="sidebar-link">Back to Home</Link>
-                <LogoutButton
-                    className="sidebar-link"
-                    onBeforeLogout={() => {
-                        if (eventSourceRef.current) { eventSourceRef.current.close(); eventSourceRef.current = null; } // stop SSE [web:3]
-                    }}
-                />
             </div>
         </div>
     );
 }
-
-
