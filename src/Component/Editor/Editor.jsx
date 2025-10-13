@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './Editor.css';
-import LogoutButton from '../Auth/logout/logout.jsx'; // Import the LogoutButton component
+import LogoutButton from '../Auth/logout/logout.jsx';
 import config from '../../config.js';
-// The base URL for your FastAPI backend
-// const API_BASE_URL = 'http://localhost:8000/api/v1/editor';
-const API_BASE_URL = config.EDITOR_API;
 
+const API_BASE_URL = config.EDITOR_API;
 
 export default function EditorPage() {
   const [assignments, setAssignments] = useState([]);
@@ -21,14 +19,12 @@ export default function EditorPage() {
   const [completedVideoUrl, setCompletedVideoUrl] = useState('');
   const [editorNotes, setEditorNotes] = useState('');
 
-  // New state for revision modal
   const [showRevisionModal, setShowRevisionModal] = useState(false);
   const [revisionNotes, setRevisionNotes] = useState('');
 
   const eventSourceRef = useRef(null);
   const navigate = useNavigate();
 
-  // Helper function to get auth token
   const getAuthToken = () => {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; authToken=`);
@@ -36,13 +32,11 @@ export default function EditorPage() {
     return null;
   };
 
-  // Helper function to clear auth token and redirect to login
   const handleAuthError = () => {
     document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
     navigate('/login');
   };
 
-  // Helper function to make authenticated API calls
   const authenticatedFetch = async (url, options = {}) => {
     const token = getAuthToken();
 
@@ -74,7 +68,6 @@ export default function EditorPage() {
     return response;
   };
 
-  // Helper function to calculate stats from assignments
   const calculateStats = (assignmentsList) => {
     const stats = {
       total_assignments: assignmentsList.length,
@@ -85,7 +78,6 @@ export default function EditorPage() {
     return stats;
   };
 
-  // Helper function to get date classification
   const getDateClassification = (dateTimeString) => {
     if (!dateTimeString) return 'old';
 
@@ -102,7 +94,6 @@ export default function EditorPage() {
     }
   };
 
-  // Helper function to get date tag display
   const getDateTag = (classification) => {
     switch (classification) {
       case 'today':
@@ -116,7 +107,6 @@ export default function EditorPage() {
     }
   };
 
-  // Helper function to format date with classification for "Assigned" field
   const formatDateTimeWithClassification = (dateTimeString) => {
     if (!dateTimeString) return 'N/A';
 
@@ -136,20 +126,17 @@ export default function EditorPage() {
     }
   };
 
-  // Helper function to check if URL is an api.video embed URL
   const isApiVideoUrl = (url) => {
     return url && url.includes('embed.api.video');
   };
 
   useEffect(() => {
-    // Check authentication first
     const token = getAuthToken();
     if (!token) {
       handleAuthError();
       return;
     }
 
-    // Function to fetch initial data
     const fetchInitialData = async () => {
       try {
         setIsLoading(true);
@@ -174,7 +161,6 @@ export default function EditorPage() {
       }
     };
 
-    // Function to establish SSE connection
     const establishSSEConnection = () => {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
@@ -186,7 +172,6 @@ export default function EditorPage() {
         return;
       }
 
-      // ✅ Pass token as query parameter for SSE (since headers don't work)
       const sseUrl = `${API_BASE_URL}/dashboard-stream?token=${encodeURIComponent(token)}`;
       const eventSource = new EventSource(sseUrl);
 
@@ -197,7 +182,6 @@ export default function EditorPage() {
         setConnectionStatus('Connected');
       };
 
-      // Listen for editor-specific updates
       eventSource.addEventListener('editor-update', (event) => {
         try {
           console.log("Raw editor event data:", event.data);
@@ -205,7 +189,6 @@ export default function EditorPage() {
           console.log("Parsed editor update data:", updateData);
           setLastUpdate(new Date().toLocaleTimeString());
 
-          // Handle different types of editor events
           if (updateData.event === 'new_assignment') {
             console.log("New assignment received:", updateData);
             setAssignments(prevAssignments => {
@@ -226,6 +209,7 @@ export default function EditorPage() {
                   editor_notes: null,
                   manager_notes: null,
                   revision_notes: null,
+                  description: updateData.description || null,
                   received_at: null
                 };
                 const updatedAssignments = [newAssignment, ...prevAssignments];
@@ -245,7 +229,8 @@ export default function EditorPage() {
                     completed_video_url: updateData.completed_video_url,
                     completed_at: updateData.completed_at,
                     editor_notes: updateData.editor_notes,
-                    revision_notes: updateData.revision_notes
+                    revision_notes: updateData.revision_notes,
+                    description: updateData.description || assignment.description
                   }
                   : assignment
               );
@@ -258,7 +243,6 @@ export default function EditorPage() {
         }
       });
 
-      // Listen for keep-alive messages
       eventSource.addEventListener('keep-alive', (event) => {
         console.log("Editor keep-alive received:", event.data);
       });
@@ -267,7 +251,6 @@ export default function EditorPage() {
         console.error("Editor SSE error:", error);
         setConnectionStatus('Connection Error');
 
-        // Check if it's an auth error (401)
         if (error.target && error.target.readyState === EventSource.CLOSED) {
           setTimeout(() => {
             const currentToken = getAuthToken();
@@ -282,11 +265,9 @@ export default function EditorPage() {
       };
     };
 
-    // Initialize the editor dashboard
     fetchInitialData();
     establishSSEConnection();
 
-    // Cleanup function
     return () => {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
@@ -295,7 +276,6 @@ export default function EditorPage() {
     };
   }, [navigate]);
 
-  // Handle opening completion modal
   const handleOpenModal = (assignment) => {
     setSelectedAssignment(assignment);
     setCompletedVideoUrl('');
@@ -303,7 +283,6 @@ export default function EditorPage() {
     setShowModal(true);
   };
 
-  // Handle closing completion modal
   const handleCloseModal = () => {
     setShowModal(false);
     setSelectedAssignment(null);
@@ -311,21 +290,18 @@ export default function EditorPage() {
     setEditorNotes('');
   };
 
-  // Handle opening revision modal
   const handleOpenRevisionModal = (assignment) => {
     setSelectedAssignment(assignment);
     setRevisionNotes('');
     setShowRevisionModal(true);
   };
 
-  // Handle closing revision modal
   const handleCloseRevisionModal = () => {
     setShowRevisionModal(false);
     setSelectedAssignment(null);
     setRevisionNotes('');
   };
 
-  // Handle assignment completion
   const handleCompleteAssignment = async () => {
     if (!completedVideoUrl || !completedVideoUrl.trim()) {
       alert('Please provide the completed video URL.');
@@ -346,7 +322,6 @@ export default function EditorPage() {
 
       console.log("Assignment completed successfully:", result);
 
-      // Update assignments and stats immediately
       setAssignments(prevAssignments => {
         const updatedAssignments = prevAssignments.map(assignment =>
           assignment.assignment_id === selectedAssignment.assignment_id
@@ -371,7 +346,6 @@ export default function EditorPage() {
     }
   };
 
-  // Handle revision request
   const handleRequestRevision = async () => {
     if (!revisionNotes || !revisionNotes.trim()) {
       alert('Please provide a reason for revision.');
@@ -388,7 +362,6 @@ export default function EditorPage() {
 
       console.log("Revision requested successfully:", result);
 
-      // Update assignments and stats immediately
       setAssignments(prevAssignments => {
         const updatedAssignments = prevAssignments.map(assignment =>
           assignment.assignment_id === selectedAssignment.assignment_id
@@ -412,7 +385,6 @@ export default function EditorPage() {
     }
   };
 
-  // Filter assignments based on current view
   const filteredAssignments = assignments.filter(assignment => {
     switch (currentView) {
       case 'in_progress':
@@ -449,7 +421,6 @@ export default function EditorPage() {
 
   return (
     <div className="editor-dashboard-layout">
-      {/* Main Content */}
       <main className="editor-dashboard-main">
         <header className="editor-dashboard-header">
           <h1>Editor Dashboard</h1>
@@ -466,7 +437,6 @@ export default function EditorPage() {
           </div>
         </header>
 
-        {/* Filter Tabs - Now with live updating counts */}
         <div className="editor-tabs">
           <button
             className={`tab-button ${currentView === 'in_progress' ? 'active' : ''}`}
@@ -488,7 +458,6 @@ export default function EditorPage() {
           </button>
         </div>
 
-        {/* Task Grid Container - IMPROVED SCROLLING AND SPACING */}
         <div className="task-grid-container">
           <div className="task-grid">
             {filteredAssignments.length === 0 ? (
@@ -503,7 +472,6 @@ export default function EditorPage() {
 
                 return (
                   <div key={assignment.assignment_id} className={`task-card status-${assignment.assignment_status.toLowerCase()}`}>
-                    {/* Video Preview */}
                     <div className="task-card__preview">
                       {assignment.video_url ? (
                         isApiVideoUrl(assignment.video_url) ? (
@@ -523,10 +491,10 @@ export default function EditorPage() {
                             title={`Video by ${assignment.volunteer_name}`}
                           />
                         ) : (
-                          <video 
-                            controls 
-                            style={{ 
-                              width: '100%', 
+                          <video
+                            controls
+                            style={{
+                              width: '100%',
                               height: '100%',
                               borderRadius: '0'
                             }}
@@ -543,26 +511,25 @@ export default function EditorPage() {
                       )}
                     </div>
 
-                    {/* Assignment Details */}
                     <div className="task-card__details">
                       <h3 className="task-card__title">Video Assignment</h3>
-                      
+
                       <div className="task-card__info-grid">
                         <div className="info-item">
                           <span className="info-label">From:</span>
                           <span className="info-value">{assignment.volunteer_name}</span>
                         </div>
-                        
+
                         <div className="info-item">
                           <span className="info-label">Assigned by:</span>
                           <span className="info-value">{assignment.manager_name || 'Unknown Manager'}</span>
                         </div>
-                        
+
                         <div className="info-item">
                           <span className="info-label">Assigned:</span>
                           <span className="info-value">{formatDateTimeWithClassification(assignment.assigned_at)}</span>
                         </div>
-                        
+
                         <div className="info-item">
                           <span className="info-label">Status:</span>
                           <span className={`status-badge status-${assignment.assignment_status.toLowerCase().replace('_', '-')}`}>
@@ -587,7 +554,36 @@ export default function EditorPage() {
                         )}
                       </div>
 
-                      {/* Notes Section */}
+                      {/* ✅ VIDEO DESCRIPTION SECTION */}
+                      {assignment.description && (
+                        <div className="video-description-section" style={{
+                          backgroundColor: '#f8f9fa',
+                          padding: '12px',
+                          borderRadius: '6px',
+                          marginTop: '12px',
+                          border: '1px solid #dee2e6'
+                        }}>
+                          <p style={{
+                            margin: '0 0 6px 0',
+                            fontWeight: '600',
+                            color: '#495057',
+                            fontSize: '14px'
+                          }}>
+                            <span style={{ marginRight: '6px' }}>📝</span>
+                            Video Description:
+                          </p>
+                          <p style={{
+                            margin: 0,
+                            color: '#212529',
+                            fontSize: '14px',
+                            lineHeight: '1.5',
+                            fontStyle: 'italic'
+                          }}>
+                            "{assignment.description}"
+                          </p>
+                        </div>
+                      )}
+
                       <div className="task-card__notes-section">
                         {assignment.manager_notes && (
                           <div className="note-item">
@@ -612,15 +608,14 @@ export default function EditorPage() {
                       </div>
                     </div>
 
-                    {/* Action Buttons - UPDATED FOR REVISION NEEDED */}
                     {(assignment.assignment_status === 'IN_PROGRESS' || assignment.assignment_status === 'REVISION_NEEDED') && (
                       <div className="task-card__actions">
                         <button
                           className="btn btn--primary"
                           onClick={() => handleOpenModal(assignment)}
                         >
-                          {assignment.assignment_status === 'REVISION_NEEDED' 
-                            ? 'Submit Revised Version' 
+                          {assignment.assignment_status === 'REVISION_NEEDED'
+                            ? 'Submit Revised Version'
                             : 'Complete Assignment'
                           }
                         </button>
@@ -643,7 +638,6 @@ export default function EditorPage() {
         </div>
       </main>
 
-      {/* Sidebar */}
       <aside className="editor-dashboard-sidebar">
         <div className="sidebar-profile">
           <div className="sidebar-profile__avatar">
@@ -677,23 +671,23 @@ export default function EditorPage() {
           </div>
         </div>
 
-        {/* <Link to="/" className="sidebar-link">Back to Home</Link> */}
-
         <LogoutButton
           className="sidebar-link"
           onBeforeLogout={() => {
-            if (eventSourceRef.current) { eventSourceRef.current.close(); eventSourceRef.current = null; } // stop SSE [web:3]
+            if (eventSourceRef.current) {
+              eventSourceRef.current.close();
+              eventSourceRef.current = null;
+            }
           }}
         />
       </aside>
 
-      {/* Completion Modal - UPDATED TITLE */}
       {showModal && (
         <div className="modal-backdrop">
           <div className="modal-content">
             <h2>
-              {selectedAssignment?.assignment_status === 'REVISION_NEEDED' 
-                ? 'Submit Revised Assignment' 
+              {selectedAssignment?.assignment_status === 'REVISION_NEEDED'
+                ? 'Submit Revised Assignment'
                 : 'Complete Assignment'
               }
             </h2>
@@ -706,6 +700,9 @@ export default function EditorPage() {
                   {selectedAssignment?.assignment_status.replace('_', ' ')}
                 </span>
               </p>
+              {selectedAssignment?.description && (
+                <p><strong>Video Description:</strong> <em>"{selectedAssignment.description}"</em></p>
+              )}
               {selectedAssignment?.manager_notes && (
                 <p><strong>Manager Instructions:</strong> <em>{selectedAssignment.manager_notes}</em></p>
               )}
@@ -716,8 +713,8 @@ export default function EditorPage() {
 
             <div className="modal-form">
               <label htmlFor="completed-url">
-                {selectedAssignment?.assignment_status === 'REVISION_NEEDED' 
-                  ? 'Revised Video URL *' 
+                {selectedAssignment?.assignment_status === 'REVISION_NEEDED'
+                  ? 'Revised Video URL *'
                   : 'Completed Video URL *'
                 }
               </label>
@@ -735,8 +732,8 @@ export default function EditorPage() {
               <textarea
                 id="editor-notes"
                 className="modal-textarea"
-                placeholder={selectedAssignment?.assignment_status === 'REVISION_NEEDED' 
-                  ? 'Add notes about the revisions made...' 
+                placeholder={selectedAssignment?.assignment_status === 'REVISION_NEEDED'
+                  ? 'Add notes about the revisions made...'
                   : 'Add any notes about the editing process...'
                 }
                 value={editorNotes}
@@ -750,8 +747,8 @@ export default function EditorPage() {
                 Cancel
               </button>
               <button className="btn btn--primary" onClick={handleCompleteAssignment}>
-                {selectedAssignment?.assignment_status === 'REVISION_NEEDED' 
-                  ? 'Submit Revised Version' 
+                {selectedAssignment?.assignment_status === 'REVISION_NEEDED'
+                  ? 'Submit Revised Version'
                   : 'Complete Assignment'
                 }
               </button>
@@ -760,7 +757,6 @@ export default function EditorPage() {
         </div>
       )}
 
-      {/* Revision Modal */}
       {showRevisionModal && (
         <div className="modal-backdrop">
           <div className="modal-content">
@@ -769,6 +765,9 @@ export default function EditorPage() {
               <p><strong>Video from:</strong> {selectedAssignment?.volunteer_name}</p>
               <p><strong>Assigned by:</strong> {selectedAssignment?.manager_name || 'Unknown Manager'}</p>
               <p><strong>Assigned on:</strong> {formatDateTime(selectedAssignment?.assigned_at)}</p>
+              {selectedAssignment?.description && (
+                <p><strong>Video Description:</strong> <em>"{selectedAssignment.description}"</em></p>
+              )}
               {selectedAssignment?.manager_notes && (
                 <p><strong>Manager Instructions:</strong> <em>{selectedAssignment.manager_notes}</em></p>
               )}
