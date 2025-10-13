@@ -602,6 +602,7 @@ function ManagerPage() {
 
                                         <div className="video-info">
                                             <p><strong>Volunteer:</strong> {item.volunteer_name}</p>
+                                            <p><strong>Phone:</strong> {item.volunteer_phone_number || 'N/A'}</p>
 
                                             {isAssignment && (
                                                 <p><strong>Editor:</strong> {item.assigned_editor_name}</p>
