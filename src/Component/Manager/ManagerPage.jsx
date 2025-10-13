@@ -1,23 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './ManagerPage.css';
-import LogoutButton from '../Auth/logout/logout.jsx'; // Import the LogoutButton component
+import LogoutButton from '../Auth/logout/logout.jsx';
 import config from '../../config.js';
-// The base URL for your FastAPI backend
-// const API_BASE_URL = 'http://localhost:8000/api/v1/manager';
+
 const API_BASE_URL = config.MANAGER_API;
 
 const TAB_OPTIONS = [
     { key: 'review', label: 'Review', statuses: ['pending_review', 'PENDING_REVIEW', 'accepted', 'ACCEPTED'] },
     { key: 'assigned', label: 'Assigned', statuses: ['assigned', 'ASSIGNED'] },
-    { key: 'revisions', label: 'Revisions', assignmentStatuses: ['REVISION_NEEDED'] }, // New tab
+    { key: 'revisions', label: 'Revisions', assignmentStatuses: ['REVISION_NEEDED'] },
     { key: 'declined', label: 'Declined', statuses: ['declined', 'DECLINED'] },
     { key: 'used', label: 'Completed', statuses: ['used', 'USED'] },
 ];
 
 function ManagerPage() {
     const [submissions, setSubmissions] = useState([]);
-    const [assignments, setAssignments] = useState([]); // New state for assignments
+    const [assignments, setAssignments] = useState([]);
     const [editors, setEditors] = useState([]);
     const [selectedEditor, setSelectedEditor] = useState('');
     const [connectionStatus, setConnectionStatus] = useState('Disconnected');
@@ -26,10 +25,12 @@ function ManagerPage() {
     const [activeTab, setActiveTab] = useState(TAB_OPTIONS[0].key);
     const [managerProfile, setManagerProfile] = useState(null);
 
-    // Updated state for revision modal - removed reassignEditorId
+    // Modal states
     const [showReassignModal, setShowReassignModal] = useState(false);
     const [selectedAssignment, setSelectedAssignment] = useState(null);
-    const [managerNotes, setManagerNotes] = useState(''); // This will be mandatory
+    const [managerNotes, setManagerNotes] = useState('');
+    const [shouldReassign, setShouldReassign] = useState(false);
+    const [newEditorId, setNewEditorId] = useState('');
 
     const eventSourceRef = useRef(null);
     const navigate = useNavigate();
@@ -165,7 +166,7 @@ function ManagerPage() {
                 const data = await response.json();
 
                 setSubmissions(data.submissions || []);
-                setAssignments(data.assignments || []); // Set assignments
+                setAssignments(data.assignments || []);
                 setEditors(data.editors || []);
                 setManagerProfile(data.manager_profile || null);
                 setConnectionStatus('Connected');
@@ -193,7 +194,6 @@ function ManagerPage() {
                 return;
             }
 
-            // ✅ Pass token as query parameter for SSE (since headers don't work)
             const sseUrl = `${API_BASE_URL}/dashboard-stream?token=${encodeURIComponent(token)}`;
             const eventSource = new EventSource(sseUrl);
 
@@ -236,7 +236,6 @@ function ManagerPage() {
                             )
                         );
                     } else if (updateData.event === 'assignment_update') {
-                        // Update assignments list
                         setAssignments(prev =>
                             prev.map(assignment =>
                                 assignment.assignment_id === updateData.assignment_id
@@ -303,10 +302,11 @@ function ManagerPage() {
         }
     };
 
-    // Updated modal handler - no editor selection needed
     const handleOpenReassignModal = (assignment) => {
         setSelectedAssignment(assignment);
-        setManagerNotes(''); // Clear previous notes
+        setManagerNotes('');
+        setShouldReassign(false);
+        setNewEditorId('');
         setShowReassignModal(true);
     };
 
@@ -314,36 +314,46 @@ function ManagerPage() {
         setShowReassignModal(false);
         setSelectedAssignment(null);
         setManagerNotes('');
+        setShouldReassign(false);
+        setNewEditorId('');
     };
 
-    // Updated reassign handler - keep same editor, require manager notes
     const handleReassignAssignment = async () => {
-        // Make manager notes mandatory
         if (!managerNotes || !managerNotes.trim()) {
             alert('Please provide instructions/reason for sending this back to the editor.');
+            return;
+        }
+
+        if (shouldReassign && !newEditorId) {
+            alert('Please select an editor to reassign this to.');
             return;
         }
 
         try {
             const url = new URL(`${API_BASE_URL}/reassign-assignment`);
             url.searchParams.append('assignment_id', selectedAssignment.assignment_id);
-            url.searchParams.append('new_editor_id', selectedAssignment.assigned_editor_id); // Keep same editor
-            url.searchParams.append('manager_notes', managerNotes.trim()); // Mandatory notes
+
+            const editorToAssign = shouldReassign ? newEditorId : selectedAssignment.assigned_editor_id;
+            url.searchParams.append('new_editor_id', editorToAssign);
+            url.searchParams.append('manager_notes', managerNotes.trim());
 
             const response = await authenticatedFetch(url.toString(), { method: 'POST' });
             const result = await response.json();
 
             console.log("Assignment sent back successfully:", result);
 
-            // Update assignments list - same editor, new status, with manager notes
             setAssignments(prev =>
                 prev.map(assignment =>
                     assignment.assignment_id === selectedAssignment.assignment_id
                         ? {
                             ...assignment,
-                            assignment_status: 'IN_PROGRESS', // Reset to in progress
+                            assignment_status: 'IN_PROGRESS',
+                            assigned_editor_id: editorToAssign,
+                            assigned_editor_name: shouldReassign
+                                ? editors.find(e => e.id === editorToAssign)?.name
+                                : assignment.assigned_editor_name,
                             manager_notes: managerNotes.trim(),
-                            assigned_at: new Date().toISOString() // Update timestamp
+                            assigned_at: new Date().toISOString(),
                         }
                         : assignment
                 )
@@ -374,7 +384,6 @@ function ManagerPage() {
 
             console.log("Assignment declined successfully:", result);
 
-            // Remove from assignments list since it's now declined
             setAssignments(prev =>
                 prev.filter(a => a.assignment_id !== assignment.assignment_id)
             );
@@ -405,7 +414,6 @@ function ManagerPage() {
         setSelectedEditor('');
     };
 
-    // Updated editor assignment counts - only count TODAY'S assignments
     const editorAssignmentCounts = editors.map(editor => ({
         ...editor,
         assignedCount: submissions.filter(sub =>
@@ -457,17 +465,14 @@ function ManagerPage() {
         }
     };
 
-    // Updated filtering logic for new revisions tab
     const tabConfig = TAB_OPTIONS.find(tab => tab.key === activeTab);
     let filteredData = [];
 
     if (activeTab === 'revisions') {
-        // For revisions tab, filter assignments by status
         filteredData = assignments.filter(assignment =>
             tabConfig.assignmentStatuses && tabConfig.assignmentStatuses.includes(assignment.assignment_status)
         );
     } else {
-        // For other tabs, filter submissions by status
         filteredData = submissions.filter(sub =>
             tabConfig.statuses && tabConfig.statuses.includes(sub.status)
         );
@@ -487,7 +492,6 @@ function ManagerPage() {
     return (
         <div className="manager-dashboard-layout">
             <main className="dashboard-main">
-                {/* Header */}
                 <header className="dashboard-header">
                     <h1>Video Submission Dashboard</h1>
                     <p>Review and assign incoming videos from volunteers.</p>
@@ -498,7 +502,7 @@ function ManagerPage() {
                         <button
                             type="button"
                             className="editots_list_display_button"
-                            onClick={() => navigate('/managerdashboard/EditorsList')} // go to list [web:98]
+                            onClick={() => navigate('/managerdashboard/EditorsList')}
                             title="Open Editors List"
                         >
                             Editors List
@@ -511,7 +515,6 @@ function ManagerPage() {
                     </div>
                 </header>
 
-                {/* Tabs */}
                 <div className="tabs-container" style={{ display: 'flex', gap: 8 }}>
                     {TAB_OPTIONS.map(tab => (
                         <button
@@ -525,7 +528,6 @@ function ManagerPage() {
                     ))}
                 </div>
 
-                {/* Stats */}
                 <div className="dashboard-stats">
                     <div className="stat-card">
                         <h3>Pending Review</h3>
@@ -549,7 +551,6 @@ function ManagerPage() {
                     </div>
                 </div>
 
-                {/* Video/Assignment Grid (Tab filtered) - NOW SCROLLABLE */}
                 <div className="video-grid-container">
                     <div className="video-grid">
                         {filteredData.length === 0 ? (
@@ -559,7 +560,6 @@ function ManagerPage() {
                             </div>
                         ) : (
                             filteredData.map((item) => {
-                                // Determine if this is an assignment (revision tab) or submission
                                 const isAssignment = activeTab === 'revisions';
                                 const dateClassification = getDateClassification(isAssignment ? item.assigned_at : item.received_at);
                                 const dateTag = getDateTag(dateClassification);
@@ -614,7 +614,6 @@ function ManagerPage() {
                                                 </span>
                                             </p>
 
-                                            {/* 🆕 ADD VIDEO DESCRIPTION DISPLAY HERE */}
                                             <div className="video-description">
                                                 <p className="video-description-label">
                                                     <span>📝</span>
@@ -637,7 +636,6 @@ function ManagerPage() {
 
                                             <p><strong>ID:</strong> <code>{(isAssignment ? item.assignment_id : item.id).slice(0, 8)}...</code></p>
 
-                                            {/* Show revision notes for revision requests */}
                                             {isAssignment && item.revision_notes && (
                                                 <div style={{
                                                     backgroundColor: '#f8d7da',
@@ -653,7 +651,6 @@ function ManagerPage() {
                                                 </div>
                                             )}
 
-                                            {/* Show manager notes if any */}
                                             {isAssignment && item.manager_notes && (
                                                 <div style={{
                                                     backgroundColor: '#d4edda',
@@ -674,7 +671,6 @@ function ManagerPage() {
                                             )}
                                         </div>
 
-                                        {/* Action Section for different tabs */}
                                         {activeTab === 'revisions' && (
                                             <div className="action-buttons">
                                                 <button
@@ -746,7 +742,6 @@ function ManagerPage() {
                                             </div>
                                         )}
 
-                                        {/* Final Status Message for assigned/declined/used */}
                                         {(['assigned', 'ASSIGNED', 'declined', 'DECLINED', 'used', 'USED'].includes(item.status)) && activeTab !== 'revisions' && (
                                             <div className="final-status-message">
                                                 <p>✓ This video has been processed.</p>
@@ -776,7 +771,6 @@ function ManagerPage() {
 
             <aside className="dashboard-sidebar">
                 <div className="sidebar-content">
-                    {/* ✅ Manager Profile Card */}
                     <div className="sidebar-profile">
                         <div className="sidebar-profile__avatar">
                             {managerProfile?.full_name?.charAt(0) || 'M'}
@@ -791,14 +785,15 @@ function ManagerPage() {
                             {managerProfile?.role || 'MANAGER'} • {managerProfile?.is_verified ? 'Verified' : 'Pending'}
                         </p>
 
-
                         <LogoutButton
                             className="sidebar-link"
                             onBeforeLogout={() => {
-                                if (eventSourceRef.current) { eventSourceRef.current.close(); eventSourceRef.current = null; } // stop SSE [web:3]
+                                if (eventSourceRef.current) {
+                                    eventSourceRef.current.close();
+                                    eventSourceRef.current = null;
+                                }
                             }}
                         />
-
                     </div>
 
                     <h3>Today's Editor Workload</h3>
@@ -862,11 +857,11 @@ function ManagerPage() {
                 <Link to="/" className="sidebar-link">Back to Home</Link>
             </aside>
 
-            {/* Updated Send Back Modal */}
             {showReassignModal && (
                 <div className="modal-backdrop">
                     <div className="modal-content">
                         <h2>Send Back to Editor</h2>
+
                         <div className="assignment-context" style={{
                             backgroundColor: '#fff3cd',
                             padding: '15px',
@@ -875,8 +870,9 @@ function ManagerPage() {
                             border: '1px solid #ffeaa7'
                         }}>
                             <p><strong>Video from:</strong> {selectedAssignment?.volunteer_name}</p>
-                            <p><strong>Editor:</strong> {selectedAssignment?.assigned_editor_name}</p>
+                            <p><strong>Current Editor:</strong> {selectedAssignment?.assigned_editor_name}</p>
                             <p><strong>Originally Assigned:</strong> {formatDateTime(selectedAssignment?.assigned_at)}</p>
+
                             {selectedAssignment?.revision_notes && (
                                 <div style={{
                                     backgroundColor: '#f8d7da',
@@ -893,17 +889,77 @@ function ManagerPage() {
                             )}
                         </div>
 
+                        <div style={{
+                            marginBottom: '20px',
+                            padding: '15px',
+                            backgroundColor: '#e7f3ff',
+                            borderRadius: '8px',
+                            border: '1px solid #b3d9ff'
+                        }}>
+                            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={shouldReassign}
+                                    onChange={(e) => {
+                                        setShouldReassign(e.target.checked);
+                                        if (!e.target.checked) setNewEditorId('');
+                                    }}
+                                    style={{ marginRight: '10px', width: '18px', height: '18px' }}
+                                />
+                                <span style={{ fontWeight: 'bold' }}>Reassign to a different editor</span>
+                            </label>
+
+                            {shouldReassign && (
+                                <div style={{ marginTop: '15px' }}>
+                                    <label htmlFor="new-editor" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
+                                        Select New Editor:
+                                    </label>
+                                    <select
+                                        id="new-editor"
+                                        className="editor-dropdown"
+                                        value={newEditorId}
+                                        onChange={(e) => setNewEditorId(e.target.value)}
+                                        style={{
+                                            width: '100%',
+                                            padding: '8px',
+                                            borderRadius: '4px',
+                                            border: newEditorId ? '2px solid #28a745' : '2px solid #dc3545'
+                                        }}
+                                    >
+                                        <option value="">-- Select Editor --</option>
+                                        {editors
+                                            .filter(editor => editor.id !== selectedAssignment?.assigned_editor_id)
+                                            .map((editor) => (
+                                                <option key={editor.id} value={editor.id}>
+                                                    {editor.name}
+                                                </option>
+                                            ))
+                                        }
+                                    </select>
+                                    <small style={{ color: '#6c757d', marginTop: '5px', display: 'block' }}>
+                                        The video will be reassigned to the selected editor.
+                                    </small>
+                                </div>
+                            )}
+
+                            {!shouldReassign && (
+                                <p style={{ marginTop: '10px', color: '#6c757d', fontSize: '14px' }}>
+                                    ✓ Video will be sent back to <strong>{selectedAssignment?.assigned_editor_name}</strong>
+                                </p>
+                            )}
+                        </div>
+
                         <div className="modal-form">
                             <label htmlFor="manager-notes" style={{ color: '#d9534f', fontWeight: 'bold' }}>
-                                Manager Instructions/Reason (Required) *
+                                Manager Instructions/Reason (Required):
                             </label>
                             <textarea
                                 id="manager-notes"
                                 className="modal-textarea"
-                                placeholder="Explain why you're sending this back to the editor and what needs to be done..."
+                                placeholder="Explain why you're sending this back and what needs to be done..."
                                 value={managerNotes}
                                 onChange={(e) => setManagerNotes(e.target.value)}
-                                rows={4}
+                                rows="4"
                                 required
                                 style={{
                                     borderColor: managerNotes.trim() ? '#28a745' : '#dc3545',
@@ -911,26 +967,29 @@ function ManagerPage() {
                                 }}
                             />
                             <small style={{ color: '#6c757d', marginTop: '5px', display: 'block' }}>
-                                This message will be sent to <strong>{selectedAssignment?.assigned_editor_name}</strong>
-                                explaining why the work needs to be redone.
+                                This message will be sent to <strong>
+                                    {shouldReassign && newEditorId
+                                        ? editors.find(e => e.id === newEditorId)?.name
+                                        : selectedAssignment?.assigned_editor_name}
+                                </strong> explaining what needs to be done.
                             </small>
                         </div>
 
                         <div className="modal-actions">
-                            <button className="btn btn--secondary" onClick={handleCloseReassignModal}>
+                            <button className="btn btn-secondary" onClick={handleCloseReassignModal}>
                                 Cancel
                             </button>
                             <button
                                 className="btn btn-assign"
                                 onClick={handleReassignAssignment}
-                                disabled={!managerNotes.trim()}
+                                disabled={!managerNotes.trim() || (shouldReassign && !newEditorId)}
                                 style={{
-                                    backgroundColor: managerNotes.trim() ? '#ffc107' : '#6c757d',
-                                    color: managerNotes.trim() ? '#212529' : '#fff',
-                                    cursor: managerNotes.trim() ? 'pointer' : 'not-allowed'
+                                    backgroundColor: (managerNotes.trim() && (!shouldReassign || newEditorId)) ? '#ffc107' : '#6c757d',
+                                    color: (managerNotes.trim() && (!shouldReassign || newEditorId)) ? '#212529' : '#fff',
+                                    cursor: (managerNotes.trim() && (!shouldReassign || newEditorId)) ? 'pointer' : 'not-allowed'
                                 }}
                             >
-                                Send Back to Editor
+                                {shouldReassign ? 'Reassign to Editor' : 'Send Back to Editor'}
                             </button>
                         </div>
                     </div>
